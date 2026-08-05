@@ -1,0 +1,7 @@
+.env
+*.bak.*
+desktop.ini
+data/
+*.osm.pbf
+*.osrm
+*.osrm.*

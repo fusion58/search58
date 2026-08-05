@@ -1,0 +1,18 @@
+# Stack por definir en issue #1 (arranque QA — geocodificación inversa)
+# Datos en /opt/search58/ (bind mounts, fuera de Docker)
+# Deploy: docker compose --env-file .env -f infra/docker-compose.yml up -d
+
+services:
+  # geocoder:
+  #   image: <imagen>:<version-fija>   # nunca latest
+  #   restart: unless-stopped
+  #   ports:
+  #     - "${SEARCH58_BIND}:${SEARCH58_PORT}:8080"
+  #   volumes:
+  #     - /opt/search58/data:/data
+  #   networks:
+  #     - search58
+
+networks:
+  search58:
+    name: search58
