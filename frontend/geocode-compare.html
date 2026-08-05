@@ -1,0 +1,395 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="theme-color" content="#e0a458"/>
+  <title>Comparar Geocodificación — OSM vs F58</title>
+  <link rel="icon" href="data:,"/>
+  <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet"/>
+  <script src="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.js"></script>
+  <link href="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.css" rel="stylesheet"/>
+  <script src="maki-icons.js"></script>
+  <script src="f58-style.js"></script>
+  <style>
+    :root{
+      --bg:#0d0c0a; --surface:#141210; --surface2:#1e1b17; --border:#2a2620; --border2:#3a342c;
+      --gold:#e0a458; --teal:#2dd4bf; --blue:#3b82f6; --text:#f0ebe4; --text-dim:#9a8f84;
+      --green:#22c55e; --red:#ef4444;
+    }
+    *{box-sizing:border-box;margin:0;padding:0;}
+    body{font-family:'Manrope',system-ui,sans-serif;background:var(--bg);color:var(--text);
+      display:flex;flex-direction:column;height:100vh;overflow:hidden;}
+
+    #topbar{height:52px;background:var(--surface);border-bottom:1px solid var(--border);
+      display:flex;align-items:center;padding:0 18px;gap:14px;flex-shrink:0;z-index:600;}
+    #brand-name{font-size:15px;font-weight:800;letter-spacing:-0.3px;white-space:nowrap;}
+    #brand-name span{color:var(--gold);}
+    #hint{font-size:12px;font-weight:600;color:var(--text-dim);white-space:nowrap;}
+    #hint b{color:var(--green);}
+    #coords-box{margin-left:auto;font-size:11px;font-weight:700;color:var(--text-dim);
+      background:var(--surface2);border:1px solid var(--border2);border-radius:5px;
+      padding:5px 10px;font-variant-numeric:tabular-nums;white-space:nowrap;cursor:pointer;}
+    #coords-box:hover{border-color:var(--gold);color:var(--gold);}
+    #coords-box.copied{border-color:var(--green);color:var(--green);}
+    .clearbtn{background:var(--surface2);border:1px solid var(--border2);color:var(--text-dim);
+      border-radius:5px;padding:6px 12px;font-family:inherit;font-size:12px;font-weight:600;cursor:pointer;white-space:nowrap;}
+    .clearbtn:hover{border-color:var(--red);color:var(--red);}
+    a.backbtn{color:var(--text-dim);text-decoration:none;font-size:12px;font-weight:600;
+      border:1px solid var(--border2);border-radius:5px;padding:6px 12px;white-space:nowrap;}
+    a.backbtn:hover{border-color:var(--gold);color:var(--gold);}
+
+    #split{display:flex;flex:1;overflow:hidden;}
+    .pane{position:relative;flex:1;height:100%;}
+    .pane+.pane{border-left:2px solid var(--border2);}
+    .map{position:absolute;inset:0;}
+
+    .badge{position:absolute;top:12px;left:12px;z-index:500;background:rgba(13,12,10,0.88);
+      border:1px solid var(--border2);border-radius:8px;padding:9px 12px;width:240px;
+      backdrop-filter:blur(3px);}
+    .badge .ds{font-size:11px;font-weight:800;text-transform:uppercase;letter-spacing:0.6px;}
+    .badge.left .ds{color:var(--blue);}
+    .badge.right .ds{color:var(--teal);}
+    .badge .sub{font-size:10px;color:var(--text-dim);margin-top:1px;}
+    .badge .addr{font-size:13px;font-weight:700;color:var(--text);margin-top:8px;line-height:1.4;}
+    .badge .addr.hint{font-size:11px;font-weight:600;color:var(--text-dim);}
+    .badge .addr.error{color:var(--red);}
+    .badge .meta{font-size:10px;color:var(--text-dim);margin-top:4px;}
+    .badge .timing{color:var(--gold);font-weight:700;}
+    .badge .fields{margin-top:6px;border-top:1px solid var(--border2);padding-top:6px;}
+    .badge .field-row{display:flex;gap:6px;font-size:10px;margin-top:3px;}
+    .badge .field-key{color:var(--text-dim);min-width:56px;}
+    .badge .field-val{color:var(--text);font-weight:600;word-break:break-word;}
+
+    .ctl{margin-top:9px;border-top:1px solid var(--border2);padding-top:8px;}
+    .ctl-lbl{font-size:9px;font-weight:800;text-transform:uppercase;letter-spacing:.5px;
+      color:var(--text-dim);display:block;margin-bottom:4px;}
+    .segmini,.togs{display:flex;gap:5px;margin-bottom:5px;}
+    .mini{flex:1;background:var(--surface2);border:1px solid var(--border2);border-radius:4px;
+      padding:5px 4px;cursor:pointer;font-family:'Manrope',sans-serif;font-size:10px;font-weight:700;
+      color:var(--text-dim);transition:background .15s,color .15s,border-color .15s;}
+    .mini:hover{border-color:var(--gold);}
+    .mini.active{background:var(--gold);color:#0d0c0a;border-color:var(--gold);}
+    .togs .mini.on{color:var(--teal);border-color:var(--teal);}
+
+    .spinner{display:inline-block;width:10px;height:10px;border:2px solid var(--border2);
+      border-top-color:var(--gold);border-radius:50%;animation:spin .6s linear infinite;
+      vertical-align:middle;margin-right:4px;}
+    @keyframes spin{to{transform:rotate(360deg)}}
+
+    .maplibregl-ctrl-attrib{background:rgba(13,12,10,0.7)!important;color:var(--text-dim)!important;}
+    .maplibregl-ctrl-attrib a{color:var(--gold)!important;}
+    .maplibregl-canvas{background:#92c5fc!important;}
+  </style>
+</head>
+<body>
+  <div id="topbar">
+    <div id="brand-name">Search58 · <span>Geocodificación</span></div>
+    <div id="hint">Haz clic en el mapa · izq: <b>OSM Nominatim</b> · der: <b>F58 Search58</b></div>
+    <div id="coords-box" onclick="copyCoords()" title="Copiar lat,lon">— , —</div>
+    <button class="clearbtn" onclick="clearAll()">Limpiar</button>
+    <a class="backbtn" href="../">← Inicio</a>
+  </div>
+
+  <div id="split">
+    <!-- Izquierda: OSM / Nominatim -->
+    <div class="pane">
+      <div id="map-l" class="map"></div>
+      <div class="badge left">
+        <div class="ds">OSM · Nominatim</div>
+        <div class="sub">nominatim.openstreetmap.org</div>
+        <div class="addr hint" id="addr-l">Haz clic en el mapa</div>
+        <div class="meta"><span class="timing" id="time-l"></span></div>
+        <div class="fields" id="fields-l" style="display:none"></div>
+        <div class="ctl">
+          <span class="ctl-lbl">Mapa base</span>
+          <div class="segmini">
+            <button id="base-l-geo" class="mini active" onclick="setBase('l','geofabrik')">Geofabrik</button>
+            <button id="base-l-f58" class="mini" onclick="setBase('l','f58')">F58</button>
+          </div>
+          <div class="togs">
+            <button id="terr-l" class="mini on" onclick="toggleTerr('l')">Relieve</button>
+            <button id="bldg-l" class="mini on" onclick="toggleBldg('l')">Edificios</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Derecha: F58 / Search58 -->
+    <div class="pane">
+      <div id="map-r" class="map"></div>
+      <div class="badge right">
+        <div class="ds">F58 · Search58</div>
+        <div class="sub" id="sub-r">localhost:7070</div>
+        <div class="addr hint" id="addr-r">Haz clic en el mapa</div>
+        <div class="meta"><span class="timing" id="time-r"></span></div>
+        <div class="fields" id="fields-r" style="display:none"></div>
+        <div class="ctl">
+          <span class="ctl-lbl">Mapa base</span>
+          <div class="segmini">
+            <button id="base-r-geo" class="mini active" onclick="setBase('r','geofabrik')">Geofabrik</button>
+            <button id="base-r-f58" class="mini" onclick="setBase('r','f58')">F58</button>
+          </div>
+          <div class="togs">
+            <button id="terr-r" class="mini on" onclick="toggleTerr('r')">Relieve</button>
+            <button id="bldg-r" class="mini on" onclick="toggleBldg('r')">Edificios</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+<script>
+  var OSM_URL = 'https://nominatim.openstreetmap.org/reverse';
+  var F58_URL = 'http://localhost:7070/reverse';
+  var LIBERTY = 'https://tiles.openfreemap.org/styles/liberty';
+  var CENTER  = [-66.9036, 10.4880], ZOOM = 12;
+
+  var st = {
+    l: { map:null, base:'geofabrik', terr:true, bldg:true, loaded:false },
+    r: { map:null, base:'geofabrik', terr:true, bldg:true, loaded:false }
+  };
+  var currentPoint = null;
+  var markers      = { l:null, r:null };
+  var syncing      = false;
+
+  // ── Mapas ──────────────────────────────────────────────────────────────────
+  function makeMap(id, side) {
+    var m = new maplibregl.Map({
+      container: id, style: LIBERTY,
+      center: CENTER, zoom: ZOOM, pitch: 30, maxZoom: 19
+    });
+    m.addControl(new maplibregl.NavigationControl(), 'top-right');
+    st[side].map = m;
+    m.on('load', function() {
+      st[side].loaded = true;
+      setupOverlays(side);
+      m.on('click', onClick);
+    });
+  }
+
+  function setupOverlays(side) {
+    var m = st[side].map, s = st[side];
+    if (!m.getSource('aws-terrain')) {
+      m.addSource('aws-terrain', {
+        type: 'raster-dem',
+        tiles: ['https://s3.amazonaws.com/elevation-tiles-prod/terrarium/{z}/{x}/{y}.png'],
+        encoding: 'terrarium', tileSize: 256, maxzoom: 15
+      });
+    }
+    if (s.terr) m.setTerrain({ source:'aws-terrain', exaggeration:1.0 });
+    else         m.setTerrain(null);
+
+    if (!m.getLayer('hillshade')) {
+      var before, layers = (m.getStyle() && m.getStyle().layers) || [];
+      for (var i = 0; i < layers.length; i++) {
+        if (layers[i].type === 'line' || layers[i].type === 'symbol') { before = layers[i].id; break; }
+      }
+      m.addLayer({ id:'hillshade', type:'hillshade', source:'aws-terrain',
+        paint: { 'hillshade-exaggeration':0.2, 'hillshade-shadow-color':'#3a3028',
+                 'hillshade-highlight-color':'#d8d0c5', 'hillshade-illumination-anchor':'map' }
+      }, before);
+      if (!s.terr) m.setLayoutProperty('hillshade', 'visibility', 'none');
+    }
+    try { if (s.base === 'f58' && window.F58Style) window.F58Style.addIcons(m); } catch(e) {}
+    applyBldg(side);
+    if (currentPoint) placeMarker(side, currentPoint);
+  }
+
+  // ── Mapa base / toggles ────────────────────────────────────────────────────
+  function setBase(side, name) {
+    if (st[side].base === name) return;
+    if (name === 'f58' && !window.F58Style) { alert('No se pudo cargar f58-style.js'); return; }
+    st[side].base = name;
+    updateSideUI(side);
+    st[side].map.once('style.load', function() { setupOverlays(side); });
+    st[side].map.setStyle(name === 'f58' ? window.F58Style.build() : LIBERTY);
+  }
+  function toggleTerr(side) {
+    var s = st[side], m = s.map; s.terr = !s.terr;
+    if (s.terr) {
+      m.setTerrain({ source:'aws-terrain', exaggeration:1.0 });
+      if (m.getLayer('hillshade')) m.setLayoutProperty('hillshade', 'visibility', 'visible');
+    } else {
+      m.setTerrain(null);
+      if (m.getLayer('hillshade')) m.setLayoutProperty('hillshade', 'visibility', 'none');
+    }
+    updateSideUI(side);
+  }
+  function buildingLayers(m) {
+    var ids = [], ly = (m.getStyle() && m.getStyle().layers) || [];
+    for (var i = 0; i < ly.length; i++) if (ly[i].type === 'fill-extrusion') ids.push(ly[i].id);
+    return ids;
+  }
+  function applyBldg(side) {
+    var vis = st[side].bldg ? 'visible' : 'none';
+    buildingLayers(st[side].map).forEach(function(id) {
+      try { st[side].map.setLayoutProperty(id, 'visibility', vis); } catch(e) {}
+    });
+  }
+  function toggleBldg(side) { st[side].bldg = !st[side].bldg; applyBldg(side); updateSideUI(side); }
+  function updateSideUI(side) {
+    var s = st[side];
+    tog('base-'+side+'-geo', 'active', s.base === 'geofabrik');
+    tog('base-'+side+'-f58', 'active', s.base === 'f58');
+    tog('terr-'+side, 'on', s.terr);
+    tog('bldg-'+side, 'on', s.bldg);
+  }
+  function tog(id, cls, on) { var el = document.getElementById(id); if (el) el.classList.toggle(cls, on); }
+
+  // ── Marcadores ─────────────────────────────────────────────────────────────
+  function markerEl(color) {
+    var el = document.createElement('div');
+    el.style.cssText = 'background:' + color + ';width:22px;height:22px;border-radius:50%;'
+      + 'border:3px solid #0d0c0a;box-shadow:0 2px 10px rgba(0,0,0,.7);cursor:crosshair;';
+    return el;
+  }
+  function placeMarker(side, ll) {
+    if (markers[side]) { markers[side].remove(); markers[side] = null; }
+    var color = side === 'l' ? '#3b82f6' : '#2dd4bf';
+    markers[side] = new maplibregl.Marker({ element: markerEl(color) })
+      .setLngLat([ll.lng, ll.lat]).addTo(st[side].map);
+  }
+
+  // ── Clic en mapa ───────────────────────────────────────────────────────────
+  function onClick(e) {
+    var ll = { lat: e.lngLat.lat, lng: e.lngLat.lng };
+    currentPoint = ll;
+    var box = document.getElementById('coords-box');
+    box.textContent = ll.lat.toFixed(6) + ' , ' + ll.lng.toFixed(6);
+    box.classList.remove('copied');
+    ['l', 'r'].forEach(function(side) { placeMarker(side, ll); });
+    geocodeBoth(ll);
+  }
+
+  // ── Geocodificación ────────────────────────────────────────────────────────
+  function geocodeBoth(ll) {
+    geocodeSide('l', ll);
+    geocodeSide('r', ll);
+  }
+
+  function geocodeSide(side, ll) {
+    var addrEl   = document.getElementById('addr-' + side);
+    var timeEl   = document.getElementById('time-' + side);
+    var fieldsEl = document.getElementById('fields-' + side);
+
+    addrEl.className = 'addr hint';
+    addrEl.innerHTML = '<span class="spinner"></span> Geocodificando…';
+    timeEl.textContent = '';
+    fieldsEl.style.display = 'none';
+    fieldsEl.innerHTML = '';
+
+    var baseUrl = side === 'l' ? OSM_URL : F58_URL;
+    var url = baseUrl + '?format=json&lat=' + ll.lat.toFixed(7) + '&lon=' + ll.lng.toFixed(7);
+    var headers = side === 'l'
+      ? { 'Accept-Language': 'es', 'User-Agent': 'Search58-Compare/1.0 (geocoding validation)' }
+      : {};
+
+    var t0 = Date.now();
+    fetch(url, { headers: headers })
+      .then(function(r) { return r.json(); })
+      .then(function(data) { renderResult(side, data, Date.now() - t0); })
+      .catch(function(err) {
+        addrEl.className = 'addr error';
+        addrEl.textContent = '⚠ ' + (err.message || 'Error de conexión');
+        if (side === 'r') {
+          document.getElementById('sub-r').innerHTML =
+            '<span style="color:var(--red)">⚠ sin respuesta — inicia server-dev.py</span>';
+        }
+      });
+  }
+
+  function renderResult(side, data, ms) {
+    var addrEl   = document.getElementById('addr-' + side);
+    var timeEl   = document.getElementById('time-' + side);
+    var fieldsEl = document.getElementById('fields-' + side);
+
+    if (!data || data.error) {
+      addrEl.className = 'addr error';
+      addrEl.textContent = '⚠ ' + (data && data.error ? data.error : 'Sin respuesta');
+      return;
+    }
+
+    addrEl.className = 'addr';
+    addrEl.textContent = data.display_name || 'Sin información';
+    timeEl.textContent = ms + ' ms';
+
+    if (data.address) {
+      var a = data.address;
+      var rows;
+      if (side === 'l') {
+        rows = [
+          ['vía',     a.road || a.pedestrian || a.footway || a.path || '—'],
+          ['sector',   a.suburb || a.neighbourhood || a.quarter || '—'],
+          ['ciudad',   a.city || a.town || a.village || a.municipality || '—'],
+          ['municipio',a.county || '—'],
+          ['estado',   a.state || '—'],
+          ['país', a.country || '—']
+        ];
+      } else {
+        rows = [
+          ['vía',     a.road     || '—'],
+          ['sector',   a.suburb   || '—'],
+          ['ciudad',   a.city     || '—'],
+          ['municipio',a.county   || '—'],
+          ['estado',   a.state    || '—']
+        ];
+      }
+      fieldsEl.innerHTML = rows.map(function(r) {
+        return '<div class="field-row"><span class="field-key">' + r[0]
+          + '</span><span class="field-val">' + escHtml(r[1]) + '</span></div>';
+      }).join('');
+      fieldsEl.style.display = 'block';
+    }
+  }
+
+  function escHtml(s) {
+    return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+  }
+
+  // ── Utilidades ─────────────────────────────────────────────────────────────
+  function copyCoords() {
+    if (!currentPoint) return;
+    var txt = currentPoint.lat.toFixed(6) + ',' + currentPoint.lng.toFixed(6);
+    navigator.clipboard.writeText(txt).then(function() {
+      var el = document.getElementById('coords-box');
+      el.classList.add('copied');
+      el.textContent = '✓ copiado';
+      setTimeout(function() {
+        el.classList.remove('copied');
+        el.textContent = currentPoint.lat.toFixed(6) + ' , ' + currentPoint.lng.toFixed(6);
+      }, 1200);
+    });
+  }
+
+  function clearAll() {
+    currentPoint = null;
+    ['l', 'r'].forEach(function(side) {
+      if (markers[side]) { markers[side].remove(); markers[side] = null; }
+      document.getElementById('addr-' + side).className = 'addr hint';
+      document.getElementById('addr-' + side).textContent = 'Haz clic en el mapa';
+      document.getElementById('time-' + side).textContent = '';
+      document.getElementById('fields-' + side).style.display = 'none';
+      document.getElementById('fields-' + side).innerHTML = '';
+    });
+    document.getElementById('coords-box').textContent = '— , —';
+    document.getElementById('sub-r').textContent = 'localhost:7070';
+  }
+
+  // ── Sincronización de vista ────────────────────────────────────────────────
+  function linkMove(src, dst) {
+    st[src].map.on('move', function() {
+      if (syncing) return; syncing = true;
+      var a = st[src].map, b = st[dst].map;
+      b.jumpTo({ center:a.getCenter(), zoom:a.getZoom(), bearing:a.getBearing(), pitch:a.getPitch() });
+      syncing = false;
+    });
+  }
+
+  makeMap('map-l', 'l');
+  makeMap('map-r', 'r');
+  linkMove('l', 'r');
+  linkMove('r', 'l');
+</script>
+</body>
+</html>
