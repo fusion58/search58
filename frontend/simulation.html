@@ -1,0 +1,452 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Search58 · Simulación</title>
+  <link rel="icon" href="data:,"/>
+  <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet"/>
+  <script src="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.js"></script>
+  <link href="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.css" rel="stylesheet"/>
+  <style>
+    :root{
+      --bg:#0d0c0a; --surface:#141210; --surface2:#1e1b17; --border:#2a2620; --border2:#3a342c;
+      --gold:#e0a458; --teal:#2dd4bf; --blue:#3b82f6; --text:#f0ebe4; --text-dim:#9a8f84;
+      --green:#22c55e; --red:#ef4444; --orange:#f97316; --gray:#6b7280;
+    }
+    *{box-sizing:border-box;margin:0;padding:0;}
+    body{font-family:'Manrope',system-ui,sans-serif;background:var(--bg);color:var(--text);
+      display:flex;flex-direction:column;height:100vh;overflow:hidden;}
+
+    /* ── Topbar ── */
+    #topbar{height:56px;background:var(--surface);border-bottom:1px solid var(--border);
+      display:flex;align-items:center;padding:0 16px;gap:12px;flex-shrink:0;z-index:600;flex-wrap:nowrap;}
+    #brand{font-size:14px;font-weight:800;white-space:nowrap;}
+    #brand span{color:var(--gold);}
+    .ctrl-group{display:flex;align-items:center;gap:6px;}
+    .ctrl-label{font-size:11px;font-weight:700;color:var(--text-dim);white-space:nowrap;}
+    .ctrl-input{background:var(--surface2);border:1px solid var(--border2);color:var(--text);
+      border-radius:5px;padding:5px 8px;font-family:inherit;font-size:12px;font-weight:700;
+      width:72px;outline:none;}
+    .ctrl-input:focus{border-color:var(--gold);}
+    select.ctrl-input{width:auto;cursor:pointer;}
+    .btn{border:none;border-radius:5px;padding:6px 14px;font-family:inherit;font-size:12px;
+      font-weight:700;cursor:pointer;white-space:nowrap;transition:opacity .15s;}
+    .btn:disabled{opacity:.35;cursor:not-allowed;}
+    .btn-start{background:var(--green);color:#0d0c0a;}
+    .btn-stop{background:var(--red);color:#fff;}
+    .btn-csv{background:var(--gold);color:#0d0c0a;}
+    .btn-clear{background:var(--surface2);color:var(--text-dim);border:1px solid var(--border2);}
+    a.nav-link{color:var(--text-dim);text-decoration:none;font-size:11px;font-weight:600;
+      border:1px solid var(--border2);border-radius:5px;padding:5px 10px;white-space:nowrap;}
+    a.nav-link:hover{border-color:var(--gold);color:var(--gold);}
+
+    /* ── Stats ── */
+    #stats{display:flex;gap:8px;margin-left:auto;flex-shrink:0;}
+    .stat{background:var(--surface2);border:1px solid var(--border2);border-radius:6px;
+      padding:4px 10px;text-align:center;min-width:70px;}
+    .stat .sv{font-size:15px;font-weight:800;}
+    .stat .sk{font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.4px;color:var(--text-dim);}
+    .stat.s-f58  .sv{color:var(--green);}
+    .stat.s-nom  .sv{color:var(--blue);}
+    .stat.s-si   .sv{color:var(--gray);}
+    .stat.s-err  .sv{color:var(--red);}
+    .stat.s-avg  .sv{color:var(--gold);}
+
+    /* ── Progress bar ── */
+    #progress-wrap{position:absolute;top:56px;left:0;right:0;height:3px;z-index:500;background:var(--border);}
+    #progress-bar{height:100%;width:0%;background:var(--gold);transition:width .2s;}
+
+    /* ── Main layout ── */
+    #main{display:flex;flex:1;overflow:hidden;position:relative;}
+    #map{width:65%;height:100%;}
+    #panel{width:35%;display:flex;flex-direction:column;border-left:2px solid var(--border2);overflow:hidden;}
+
+    /* ── Legend ── */
+    #legend{padding:10px 14px;border-bottom:1px solid var(--border);display:flex;gap:14px;flex-wrap:wrap;flex-shrink:0;}
+    .leg{display:flex;align-items:center;gap:5px;font-size:10px;font-weight:700;color:var(--text-dim);}
+    .dot{width:10px;height:10px;border-radius:50%;flex-shrink:0;}
+    .dot-f58 {background:var(--green);}
+    .dot-nom {background:var(--blue);}
+    .dot-si  {background:var(--gray);}
+    .dot-err {background:var(--red);}
+    .dot-pend{background:var(--gold);}
+
+    /* ── Table ── */
+    #table-wrap{flex:1;overflow-y:auto;}
+    table{width:100%;border-collapse:collapse;font-size:11px;}
+    thead th{position:sticky;top:0;background:var(--surface);padding:7px 8px;text-align:left;
+      font-size:9px;font-weight:800;text-transform:uppercase;letter-spacing:.5px;
+      color:var(--text-dim);border-bottom:1px solid var(--border2);z-index:10;}
+    tbody tr{border-bottom:1px solid var(--border);}
+    tbody tr:hover{background:var(--surface2);}
+    tbody td{padding:5px 8px;vertical-align:top;word-break:break-word;}
+    td.td-id{font-weight:800;color:var(--text-dim);white-space:nowrap;}
+    td.td-coord{font-size:10px;color:var(--text-dim);white-space:nowrap;}
+    td.td-dir{max-width:180px;}
+    td.td-src span{font-size:10px;font-weight:800;padding:2px 5px;border-radius:3px;}
+    .src-f58{background:rgba(34,197,94,.15);color:var(--green);}
+    .src-nom{background:rgba(59,130,246,.15);color:var(--blue);}
+    .src-si {background:rgba(107,114,128,.15);color:var(--gray);}
+    .src-err{background:rgba(239,68,68,.15);color:var(--red);}
+    td.td-ms{white-space:nowrap;font-weight:700;color:var(--gold);}
+
+    .maplibregl-ctrl-attrib{background:rgba(13,12,10,.7)!important;color:var(--text-dim)!important;}
+    .maplibregl-ctrl-attrib a{color:var(--gold)!important;}
+    .maplibregl-canvas{background:#92c5fc!important;}
+
+    #empty-msg{padding:40px;text-align:center;color:var(--text-dim);font-size:12px;}
+  </style>
+</head>
+<body>
+  <div id="topbar">
+    <div id="brand">Search58 · <span>Simulación</span></div>
+
+    <div class="ctrl-group">
+      <span class="ctrl-label">Puntos</span>
+      <input id="n-input" class="ctrl-input" type="number" value="100" min="5" max="500"/>
+    </div>
+    <div class="ctrl-group">
+      <span class="ctrl-label">Disparo</span>
+      <select id="speed-input" class="ctrl-input">
+        <option value="50">50 ms</option>
+        <option value="150" selected>150 ms</option>
+        <option value="300">300 ms</option>
+        <option value="600">600 ms</option>
+        <option value="1000">1 s</option>
+      </select>
+    </div>
+    <button class="btn btn-start" id="btn-start" onclick="startSim()">▶ Iniciar</button>
+    <button class="btn btn-stop"  id="btn-stop"  onclick="stopSim()"  disabled>■ Detener</button>
+    <button class="btn btn-csv"   id="btn-csv"   onclick="downloadCSV()" disabled>↓ CSV</button>
+    <button class="btn btn-clear" id="btn-clear" onclick="clearSim()">✕ Limpiar</button>
+
+    <div id="stats">
+      <div class="stat">
+        <div class="sv" id="st-total">0</div>
+        <div class="sk">Enviados</div>
+      </div>
+      <div class="stat s-f58">
+        <div class="sv" id="st-f58">0</div>
+        <div class="sk">F58</div>
+      </div>
+      <div class="stat s-nom">
+        <div class="sv" id="st-nom">0</div>
+        <div class="sk">Nominatim</div>
+      </div>
+      <div class="stat s-si">
+        <div class="sv" id="st-si">0</div>
+        <div class="sk">Sin info</div>
+      </div>
+      <div class="stat s-err">
+        <div class="sv" id="st-err">0</div>
+        <div class="sk">Errores</div>
+      </div>
+      <div class="stat s-avg">
+        <div class="sv" id="st-avg">—</div>
+        <div class="sk">ms prom</div>
+      </div>
+    </div>
+
+    <a class="nav-link" href="geocode-compare.html">← Comparador</a>
+  </div>
+
+  <div id="progress-wrap"><div id="progress-bar"></div></div>
+
+  <div id="main">
+    <div id="map"></div>
+    <div id="panel">
+      <div id="legend">
+        <span class="leg"><span class="dot dot-f58"></span>F58</span>
+        <span class="leg"><span class="dot dot-nom"></span>Nominatim</span>
+        <span class="leg"><span class="dot dot-si"></span>Sin info</span>
+        <span class="leg"><span class="dot dot-err"></span>Error</span>
+        <span class="leg"><span class="dot dot-pend"></span>En proceso</span>
+      </div>
+      <div id="table-wrap">
+        <div id="empty-msg">Configura los parámetros y pulsa ▶ Iniciar</div>
+        <table id="report-table" style="display:none">
+          <thead>
+            <tr>
+              <th>#</th><th>Lat</th><th>Lon</th><th>Dirección</th><th>Fuente</th><th>ms</th>
+            </tr>
+          </thead>
+          <tbody id="report-body"></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+<script>
+  var API   = 'http://localhost:7171/reverse';
+  var LAT_MIN = 0.65,  LAT_MAX = 12.20;
+  var LON_MIN = -73.35, LON_MAX = -59.80;
+  var LIBERTY = 'https://tiles.openfreemap.org/styles/liberty';
+
+  // ── Estado ────────────────────────────────────────────────────────────────
+  var sim = {
+    running: false, total: 0, fired: 0, received: 0,
+    fireTimer: null, results: [],
+    cnt: { f58: 0, nominatim: 0, sininfo: 0, err: 0 },
+    totalMs: 0, msCount: 0
+  };
+
+  // GeoJSON acumulado para los puntos en el mapa
+  var geojson = { type: 'FeatureCollection', features: [] };
+  // Lookup por id → índice en features
+  var featureIdx = {};
+
+  // ── Mapa ──────────────────────────────────────────────────────────────────
+  var map = new maplibregl.Map({
+    container: 'map', style: LIBERTY,
+    center: [-66.5, 7.5], zoom: 5.5, maxZoom: 18
+  });
+  map.addControl(new maplibregl.NavigationControl(), 'top-right');
+
+  map.on('load', function() {
+    map.addSource('pts', { type: 'geojson', data: geojson });
+
+    map.addLayer({
+      id: 'pts-circle', type: 'circle', source: 'pts',
+      paint: {
+        'circle-radius': ['interpolate', ['linear'], ['zoom'], 4, 4, 10, 7],
+        'circle-color': [
+          'match', ['get', 'status'],
+          'f58',      '#22c55e',
+          'nominatim','#3b82f6',
+          'sininfo',  '#6b7280',
+          'error',    '#ef4444',
+          '#e0a458'   // pending
+        ],
+        'circle-opacity': 0.85,
+        'circle-stroke-width': 1,
+        'circle-stroke-color': '#0d0c0a',
+        'circle-stroke-opacity': 0.4
+      }
+    });
+
+    // Popup al pasar
+    var popup = new maplibregl.Popup({ closeButton: false, closeOnClick: false });
+    map.on('mouseenter', 'pts-circle', function(e) {
+      map.getCanvas().style.cursor = 'pointer';
+      var props = e.features[0].properties;
+      var html = '<div style="font-family:Manrope,sans-serif;font-size:11px;max-width:220px;">'
+        + '<b>#' + props.id + '</b> ' + props.lat + ', ' + props.lon + '<br/>'
+        + (props.dir || '—') + '<br/>'
+        + '<span style="color:#e0a458">' + (props.src || '—') + '</span>'
+        + (props.ms ? ' · ' + props.ms + 'ms' : '')
+        + '</div>';
+      popup.setLngLat(e.features[0].geometry.coordinates).setHTML(html).addTo(map);
+    });
+    map.on('mouseleave', 'pts-circle', function() {
+      map.getCanvas().style.cursor = '';
+      popup.remove();
+    });
+  });
+
+  function updateMapSource() {
+    if (map.getSource('pts')) map.getSource('pts').setData(geojson);
+  }
+
+  function addPendingPoint(id, lat, lon) {
+    var feat = {
+      type: 'Feature',
+      geometry: { type: 'Point', coordinates: [lon, lat] },
+      properties: { id: id, lat: lat.toFixed(5), lon: lon.toFixed(5),
+                    status: 'pending', dir: '', src: '', ms: 0 }
+    };
+    featureIdx[id] = geojson.features.length;
+    geojson.features.push(feat);
+    updateMapSource();
+  }
+
+  function updatePoint(id, status, dir, src, ms) {
+    var idx = featureIdx[id];
+    if (idx !== undefined) {
+      var p = geojson.features[idx].properties;
+      p.status = status; p.dir = dir; p.src = src; p.ms = ms;
+      updateMapSource();
+    }
+  }
+
+  // ── Generador de puntos ───────────────────────────────────────────────────
+  function randPt(seed) {
+    // LCG simple para reproducibilidad opcional
+    return {
+      lat: Math.random() * (LAT_MAX - LAT_MIN) + LAT_MIN,
+      lon: Math.random() * (LON_MAX - LON_MIN) + LON_MIN
+    };
+  }
+
+  // ── Simulación ────────────────────────────────────────────────────────────
+  function startSim() {
+    clearSim();
+    sim.total   = Math.max(5, Math.min(500, parseInt(document.getElementById('n-input').value) || 100));
+    sim.running = true;
+    sim.fired   = 0;
+
+    document.getElementById('btn-start').disabled = true;
+    document.getElementById('btn-stop').disabled  = false;
+    document.getElementById('btn-csv').disabled   = true;
+    document.getElementById('empty-msg').style.display = 'none';
+    document.getElementById('report-table').style.display = '';
+
+    var delay = parseInt(document.getElementById('speed-input').value) || 150;
+    fireNext(delay);
+  }
+
+  function fireNext(delay) {
+    if (!sim.running || sim.fired >= sim.total) {
+      if (sim.fired >= sim.total) finishSim();
+      return;
+    }
+    var id  = sim.fired + 1;
+    var pt  = randPt();
+    sim.fired++;
+
+    addPendingPoint(id, pt.lat, pt.lon);
+    addRowPending(id, pt.lat, pt.lon);
+    updateProgress();
+
+    var t0  = Date.now();
+    var url = API + '?format=json&lat=' + pt.lat.toFixed(7) + '&lon=' + pt.lon.toFixed(7);
+    fetch(url)
+      .then(function(r) { return r.json(); })
+      .then(function(data) {
+        var ms  = Date.now() - t0;
+        var dir = data.display_name || '';
+        var src = data.source || 'f58';
+        var status = dir.indexOf('Sin infor') >= 0 ? 'sininfo' : src;
+        sim.received++;
+        sim.results.push({ id: id, lat: pt.lat.toFixed(6), lon: pt.lon.toFixed(6),
+                           direccion: dir, fuente: src, tiempo_ms: ms, error: '' });
+        updatePoint(id, status, dir, src, ms);
+        updateRow(id, dir, src, ms);
+        if (status === 'sininfo') sim.cnt.sininfo++;
+        else if (src === 'nominatim') sim.cnt.nominatim++;
+        else sim.cnt.f58++;
+        sim.totalMs += ms; sim.msCount++;
+        updateStats();
+        checkFinish();
+      })
+      .catch(function(err) {
+        var ms = Date.now() - t0;
+        sim.received++;
+        sim.cnt.err++;
+        sim.results.push({ id: id, lat: pt.lat.toFixed(6), lon: pt.lon.toFixed(6),
+                           direccion: '', fuente: 'error', tiempo_ms: ms, error: err.message || 'timeout' });
+        updatePoint(id, 'error', '⚠ ' + (err.message || 'timeout'), 'error', ms);
+        updateRow(id, '⚠ ' + (err.message || 'error'), 'error', ms);
+        updateStats();
+        checkFinish();
+      });
+
+    sim.fireTimer = setTimeout(function() { fireNext(delay); }, delay);
+  }
+
+  function stopSim() {
+    sim.running = false;
+    if (sim.fireTimer) clearTimeout(sim.fireTimer);
+    document.getElementById('btn-start').disabled = false;
+    document.getElementById('btn-stop').disabled  = true;
+    document.getElementById('btn-csv').disabled   = sim.results.length === 0;
+  }
+
+  function finishSim() {
+    sim.running = false;
+    document.getElementById('btn-start').disabled = false;
+    document.getElementById('btn-stop').disabled  = true;
+    document.getElementById('btn-csv').disabled   = false;
+  }
+
+  function checkFinish() {
+    if (!sim.running && sim.received >= sim.fired) finishSim();
+    if (sim.running && sim.received >= sim.total) finishSim();
+  }
+
+  function clearSim() {
+    stopSim();
+    sim = { running: false, total: 0, fired: 0, received: 0, fireTimer: null, results: [],
+            cnt: { f58: 0, nominatim: 0, sininfo: 0, err: 0 }, totalMs: 0, msCount: 0 };
+    geojson.features = [];
+    featureIdx = {};
+    updateMapSource();
+    document.getElementById('report-body').innerHTML = '';
+    document.getElementById('empty-msg').style.display = '';
+    document.getElementById('report-table').style.display = 'none';
+    document.getElementById('progress-bar').style.width = '0%';
+    ['total','f58','nom','si','err'].forEach(function(k){ document.getElementById('st-'+k).textContent='0'; });
+    document.getElementById('st-avg').textContent = '—';
+    document.getElementById('btn-csv').disabled = true;
+  }
+
+  // ── Stats & progreso ──────────────────────────────────────────────────────
+  function updateStats() {
+    var total = sim.total || 1;
+    document.getElementById('st-total').textContent = sim.received + '/' + sim.total;
+    document.getElementById('st-f58').textContent   = sim.cnt.f58;
+    document.getElementById('st-nom').textContent   = sim.cnt.nominatim;
+    document.getElementById('st-si').textContent    = sim.cnt.sininfo;
+    document.getElementById('st-err').textContent   = sim.cnt.err;
+    document.getElementById('st-avg').textContent   = sim.msCount > 0
+      ? Math.round(sim.totalMs / sim.msCount) + ''
+      : '—';
+  }
+
+  function updateProgress() {
+    var pct = sim.total > 0 ? (sim.fired / sim.total * 100) : 0;
+    document.getElementById('progress-bar').style.width = pct + '%';
+  }
+
+  // ── Tabla ─────────────────────────────────────────────────────────────────
+  var rowMap = {};
+
+  function srcTag(src) {
+    if (src === 'f58')       return '<span class="src-f58">F58</span>';
+    if (src === 'nominatim') return '<span class="src-nom">Nominatim</span>';
+    if (src === 'error')     return '<span class="src-err">Error</span>';
+    return '<span class="src-si">Sin info</span>';
+  }
+
+  function addRowPending(id, lat, lon) {
+    var tbody = document.getElementById('report-body');
+    var tr = document.createElement('tr');
+    tr.id = 'row-' + id;
+    tr.innerHTML = '<td class="td-id">' + id + '</td>'
+      + '<td class="td-coord">' + lat.toFixed(5) + '</td>'
+      + '<td class="td-coord">' + lon.toFixed(5) + '</td>'
+      + '<td class="td-dir" id="dir-' + id + '"><span style="color:var(--gold)">…</span></td>'
+      + '<td class="td-src" id="src-' + id + '"></td>'
+      + '<td class="td-ms"  id="ms-'  + id + '"></td>';
+    tbody.insertBefore(tr, tbody.firstChild);
+    rowMap[id] = tr;
+  }
+
+  function updateRow(id, dir, src, ms) {
+    var dirEl = document.getElementById('dir-' + id);
+    var srcEl = document.getElementById('src-' + id);
+    var msEl  = document.getElementById('ms-'  + id);
+    if (dirEl) dirEl.textContent = dir || '—';
+    if (srcEl) srcEl.innerHTML   = srcTag(src);
+    if (msEl)  msEl.textContent  = ms + ' ms';
+  }
+
+  // ── CSV ───────────────────────────────────────────────────────────────────
+  function downloadCSV() {
+    var rows = [['id','lat','lon','direccion','fuente','tiempo_ms','error']];
+    sim.results.forEach(function(r) {
+      rows.push([r.id, r.lat, r.lon,
+        '"' + (r.direccion || '').replace(/"/g, '""') + '"',
+        r.fuente, r.tiempo_ms,
+        '"' + (r.error || '').replace(/"/g, '""') + '"']);
+    });
+    var csv  = '﻿' + rows.map(function(r){ return r.join(','); }).join('\r\n');
+    var blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+    var a    = document.createElement('a');
+    a.href   = URL.createObjectURL(blob);
+    a.download = 'simulacion_search58_' + Date.now() + '.csv';
+    a.click();
+  }
+</script>
+</body>
+</html>
