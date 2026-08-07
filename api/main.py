@@ -2,12 +2,13 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI, Query, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from geocoder import geocode_hybrid, search_places
-from db import run_sql, get_pool
+from db import run_sql
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    get_pool()   # inicializar el pool al arrancar
+    # El pool se inicializa en el primer request (lazy).
+    # No conectar aquí: sin BD en el env de smoke test, startup fallaría.
     yield
 
 
