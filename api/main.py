@@ -1,6 +1,7 @@
 from contextlib import asynccontextmanager
 from fastapi import FastAPI, Query, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
 from geocoder import geocode_hybrid, search_places
 from db import run_sql
 
@@ -44,3 +45,6 @@ def search(
     limit: int = Query(10, ge=1, le=50),
 ):
     return search_places(q, limit)
+
+
+app.mount('/', StaticFiles(directory='frontend', html=True), name='frontend')

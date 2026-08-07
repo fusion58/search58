@@ -6,6 +6,7 @@ COPY api/requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
 COPY api/ .
+COPY frontend/geocode-compare.html frontend/f58-style.js frontend/maki-icons.js frontend/
 
 EXPOSE 7171
 
