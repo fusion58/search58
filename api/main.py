@@ -1,9 +1,14 @@
 from contextlib import asynccontextmanager
-from fastapi import FastAPI, Query, HTTPException
+import os
+import httpx
+from fastapi import FastAPI, Query, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import Response
 from fastapi.staticfiles import StaticFiles
 from geocoder import geocode_hybrid, search_places
 from db import run_sql
+
+GEOSERVER_URL = os.environ.get('GEOSERVER_URL', 'http://localhost:8080')
 
 
 @asynccontextmanager
@@ -45,6 +50,22 @@ def search(
     limit: int = Query(10, ge=1, le=50),
 ):
     return search_places(q, limit)
+
+
+@app.api_route('/geoserver/{path:path}', methods=['GET', 'HEAD'])
+def proxy_geoserver(path: str, request: Request):
+    url = f'{GEOSERVER_URL}/geoserver/{path}'
+    qs = str(request.url.query)
+    if qs:
+        url += '?' + qs
+    with httpx.Client(timeout=15, follow_redirects=True) as client:
+        resp = client.request(request.method, url, headers={'Host': 'localhost'})
+    return Response(
+        content=resp.content,
+        status_code=resp.status_code,
+        media_type=resp.headers.get('content-type'),
+        headers={'Access-Control-Allow-Origin': '*'},
+    )
 
 
 app.mount('/', StaticFiles(directory='frontend', html=True), name='frontend')
