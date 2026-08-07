@@ -430,19 +430,34 @@
 
     addrEl.className = 'addr';
     addrEl.textContent = data.display_name || 'Sin información';
-    timeEl.textContent = ms + ' ms';
+
+    // Panel derecho: mostrar fuente elegida por el híbrido y scores
+    if (side === 'r') {
+      var src     = data.source || 'f58';
+      var score   = data.score != null ? data.score : '—';
+      var f58sc   = data.f58_score != null ? data.f58_score : null;
+      var srcColor = src === 'nominatim' ? 'var(--blue)' : 'var(--teal)';
+      var srcLabel = src === 'nominatim' ? 'Nominatim (fallback)' : 'F58';
+      var scoreInfo = 'score ' + score + '/23';
+      if (f58sc != null) scoreInfo += ' · F58 fue ' + f58sc + '/23';
+      timeEl.innerHTML = ms + ' ms &nbsp;·&nbsp; '
+        + '<span style="color:' + srcColor + ';font-weight:800">' + srcLabel + '</span>'
+        + ' <span style="color:var(--text-dim);font-size:9px">(' + scoreInfo + ')</span>';
+    } else {
+      timeEl.textContent = ms + ' ms';
+    }
 
     if (data.address) {
       var a = data.address;
       var rows;
       if (side === 'l') {
         rows = [
-          ['vía',     a.road || a.pedestrian || a.footway || a.path || '—'],
+          ['vía',      a.road || a.pedestrian || a.footway || a.path || '—'],
           ['sector',   a.suburb || a.neighbourhood || a.quarter || '—'],
           ['ciudad',   a.city || a.town || a.village || a.municipality || '—'],
           ['municipio',a.county || '—'],
           ['estado',   a.state || '—'],
-          ['país', a.country || '—']
+          ['país',     a.country || '—']
         ];
       } else {
         rows = [
