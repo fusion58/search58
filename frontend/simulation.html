@@ -168,6 +168,10 @@
         <div class="sv" id="st-avg">—</div>
         <div class="sk">ms prom</div>
       </div>
+      <div class="stat s-avg">
+        <div class="sv" id="st-rps">—</div>
+        <div class="sk">pts/s</div>
+      </div>
     </div>
 
     <a class="nav-link" href="geocode-compare.html">← Comparador</a>
@@ -436,6 +440,7 @@
     if (sim.fireTimer) clearTimeout(sim.fireTimer);
     sim = { running: false, total: 0, fired: 0, received: 0, fireTimer: null, results: [], points: [],
             cnt: { f58: 0, nominatim: 0, sininfo: 0, err: 0 }, totalMs: 0, msCount: 0, tStart: 0 };
+    maxMs = 0; maxMsId = null;
     geojson.features = [];
     featureIdx = {};
     updateMapSource();
@@ -501,6 +506,10 @@
     document.getElementById('st-avg').textContent   = sim.msCount > 0
       ? Math.round(sim.totalMs / sim.msCount) + ''
       : '—';
+    var elapsed = sim.tStart > 0 ? (Date.now() - sim.tStart) / 1000 : 0;
+    document.getElementById('st-rps').textContent = elapsed > 0 && sim.received > 0
+      ? (sim.received / elapsed).toFixed(1)
+      : '—';
   }
 
   function updateProgress() {
@@ -537,6 +546,9 @@
     rowMap[id] = tr;
   }
 
+  var maxMs = 0;
+  var maxMsId = null;
+
   function updateRow(id, dir, src, ms) {
     var dirEl = document.getElementById('dir-' + id);
     var srcEl = document.getElementById('src-' + id);
@@ -544,6 +556,18 @@
     if (dirEl) dirEl.textContent = dir || '—';
     if (srcEl) srcEl.innerHTML   = srcTag(src);
     if (msEl)  msEl.textContent  = ms + ' ms';
+
+    // Marcar el registro con el tiempo más alto
+    if (ms > maxMs) {
+      // Quitar marca al anterior máximo
+      if (maxMsId !== null) {
+        var prev = document.getElementById('ms-' + maxMsId);
+        if (prev) prev.style.color = '';
+      }
+      maxMs = ms;
+      maxMsId = id;
+      if (msEl) msEl.style.color = 'var(--red)';
+    }
   }
 
   // ── CSV ───────────────────────────────────────────────────────────────────
