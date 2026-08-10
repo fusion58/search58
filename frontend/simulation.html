@@ -79,7 +79,7 @@
       font-size:9px;font-weight:800;text-transform:uppercase;letter-spacing:.5px;
       color:var(--text-dim);border-bottom:1px solid var(--border2);z-index:10;}
     tbody tr{border-bottom:1px solid var(--border);}
-    tbody tr:hover{background:var(--surface2);}
+    tbody tr:hover{background:var(--surface2);outline:1px solid var(--gold);}
     tbody td{padding:5px 8px;vertical-align:top;word-break:break-word;}
     td.td-id{font-weight:800;color:var(--text-dim);white-space:nowrap;}
     td.td-coord{font-size:10px;color:var(--text-dim);white-space:nowrap;}
@@ -522,12 +522,17 @@
     var tbody = document.getElementById('report-body');
     var tr = document.createElement('tr');
     tr.id = 'row-' + id;
+    tr.style.cursor = 'pointer';
+    tr.title = 'Centrar en el mapa';
     tr.innerHTML = '<td class="td-id">' + id + '</td>'
       + '<td class="td-coord">' + lat.toFixed(5) + '</td>'
       + '<td class="td-coord">' + lon.toFixed(5) + '</td>'
       + '<td class="td-dir" id="dir-' + id + '"><span style="color:var(--gold)">…</span></td>'
       + '<td class="td-src" id="src-' + id + '"></td>'
       + '<td class="td-ms"  id="ms-'  + id + '"></td>';
+    tr.addEventListener('click', function() {
+      map.flyTo({ center: [lon, lat], zoom: 14, speed: 1.4 });
+    });
     tbody.insertBefore(tr, tbody.firstChild);
     rowMap[id] = tr;
   }
