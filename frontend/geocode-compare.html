@@ -220,26 +220,41 @@
   }
 
   function evaluateWinner() {
+    if (collected.lErr && collected.rErr) return;
+
+    // Score del panel izquierdo (Nominatim directo — re-calculamos en JS)
     var sL = collected.lErr ? -1 : scoreAddress(collected.l && collected.l.address);
-    var sR = collected.rErr ? -1 : scoreAddress(collected.r && collected.r.address);
 
-    ['l','r'].forEach(function(side) {
-      var score = side === 'l' ? sL : sR;
-      if (score < 0) return;
-      var pct = Math.round((score / 23) * 100);
-      document.getElementById('score-val-' + side).textContent = score + '/23 pts';
-      document.getElementById('fill-' + side).style.width = pct + '%';
-      document.getElementById('score-' + side).style.display = 'flex';
-    });
+    // Score del panel derecho viene directo de la API (ya lo calculó el híbrido)
+    var rData = collected.r;
+    var sR = collected.rErr ? -1
+           : (rData && rData.score != null ? rData.score : scoreAddress(rData && rData.address));
 
-    // Decisión: F58 (derecha) es suficiente si score >= 13 (tiene calle + ciudad)
-    // En empate se prefiere F58 (local, privado)
-    var winner;
-    if (sL < 0 && sR < 0) return;
-    else if (sL < 0)  winner = 'r';
-    else if (sR < 0)  winner = 'l';
-    else if (sR >= 13) winner = 'r';           // F58 suficientemente completo
-    else winner = (sR >= sL) ? 'r' : 'l';     // mayor score, empate → F58
+    // Mostrar barras de score
+    if (!collected.lErr && sL >= 0) {
+      document.getElementById('score-val-l').textContent = sL + '/23 pts';
+      document.getElementById('fill-l').style.width = Math.round(sL / 23 * 100) + '%';
+      document.getElementById('score-l').style.display = 'flex';
+    }
+    if (!collected.rErr && sR >= 0) {
+      document.getElementById('score-val-r').textContent = sR + '/23 pts';
+      document.getElementById('fill-r').style.width = Math.round(sR / 23 * 100) + '%';
+      document.getElementById('score-r').style.display = 'flex';
+    }
+
+    // El ganador lo decide la API a través del campo source:
+    //   source="f58"       → Search58 usó datos propios → gana panel derecho
+    //   source="nominatim" → Search58 recurrió a Nominatim → gana panel izquierdo
+    //                        (ambos paneles muestran el mismo resultado)
+    var src = rData && rData.source;
+    var winner = (src === 'nominatim') ? 'l' : 'r';
+    if (collected.rErr) winner = 'l';
+    if (collected.lErr) winner = 'r';
+
+    var winnerTagL = document.getElementById('winner-l');
+    var winnerTagR = document.getElementById('winner-r');
+    winnerTagL.textContent = '✓ Search58 eligió Nominatim';
+    winnerTagR.textContent = '✓ Search58 eligió F58';
 
     ['l','r'].forEach(function(side) {
       var cls = side === 'l' ? 'left' : 'right';
