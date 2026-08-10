@@ -96,6 +96,28 @@
     .maplibregl-canvas{background:#92c5fc!important;}
 
     #empty-msg{padding:40px;text-align:center;color:var(--text-dim);font-size:12px;}
+
+    /* ── Resumen final ── */
+    #summary{display:none;padding:12px 14px;border-bottom:2px solid var(--green);
+      background:rgba(34,197,94,.06);flex-shrink:0;}
+    #summary .sum-title{font-size:11px;font-weight:800;text-transform:uppercase;
+      letter-spacing:.5px;color:var(--green);margin-bottom:8px;display:flex;
+      justify-content:space-between;align-items:center;}
+    #summary .sum-title button{background:none;border:none;color:var(--text-dim);
+      cursor:pointer;font-size:14px;line-height:1;}
+    #summary .sum-grid{display:grid;grid-template-columns:1fr 1fr;gap:4px 16px;}
+    #summary .sum-row{display:flex;justify-content:space-between;font-size:10px;
+      padding:2px 0;border-bottom:1px solid var(--border);}
+    #summary .sum-key{color:var(--text-dim);font-weight:600;}
+    #summary .sum-val{font-weight:800;}
+    #summary .sum-val.c-green{color:var(--green);}
+    #summary .sum-val.c-blue {color:var(--blue);}
+    #summary .sum-val.c-gray {color:var(--gray);}
+    #summary .sum-val.c-red  {color:var(--red);}
+    #summary .sum-val.c-gold {color:var(--gold);}
+    #summary .sum-divider{grid-column:1/-1;border-top:1px solid var(--border2);margin:4px 0;}
+    #summary .sum-throughput{grid-column:1/-1;margin-top:4px;font-size:10px;
+      color:var(--text-dim);text-align:center;}
   </style>
 </head>
 <body>
@@ -163,6 +185,14 @@
         <span class="leg"><span class="dot dot-err"></span>Error</span>
         <span class="leg"><span class="dot dot-pend"></span>En proceso</span>
       </div>
+      <div id="summary">
+        <div class="sum-title">
+          <span>Resumen del benchmark</span>
+          <button onclick="document.getElementById('summary').style.display='none'">×</button>
+        </div>
+        <div class="sum-grid" id="sum-grid"></div>
+      </div>
+
       <div id="table-wrap">
         <div id="empty-msg">Configura los parámetros y pulsa ▶ Iniciar</div>
         <table id="report-table" style="display:none">
@@ -178,18 +208,20 @@
   </div>
 
 <script>
-  var API   = 'http://localhost:7171/reverse';
-  var LAT_MIN = 0.65,  LAT_MAX = 12.20;
-  var LON_MIN = -73.35, LON_MAX = -59.80;
-  var LIBERTY = 'https://tiles.openfreemap.org/styles/liberty';
+  var API         = 'http://localhost:7171/reverse';
+  var SAMPLE_API  = 'http://localhost:7171/sample-points';
+  var LIBERTY     = 'https://tiles.openfreemap.org/styles/liberty';
 
   // ── Estado ────────────────────────────────────────────────────────────────
   var sim = {
     running: false, total: 0, fired: 0, received: 0,
-    fireTimer: null, results: [],
+    fireTimer: null, results: [], points: [],
     cnt: { f58: 0, nominatim: 0, sininfo: 0, err: 0 },
-    totalMs: 0, msCount: 0
+    totalMs: 0, msCount: 0, tStart: 0
   };
+  var simGen    = 0;   // generación — invalida callbacks de simulaciones anteriores
+  var inFlight  = 0;   // peticiones en vuelo actualmente
+  var MAX_FLIGHT = 5;  // máximo concurrente (evita timeout por sobrecarga de psql)
 
   // GeoJSON acumulado para los puntos en el mapa
   var geojson = { type: 'FeatureCollection', features: [] };
@@ -269,40 +301,66 @@
     }
   }
 
-  // ── Generador de puntos ───────────────────────────────────────────────────
-  function randPt(seed) {
-    // LCG simple para reproducibilidad opcional
-    return {
-      lat: Math.random() * (LAT_MAX - LAT_MIN) + LAT_MIN,
-      lon: Math.random() * (LON_MAX - LON_MIN) + LON_MIN
-    };
-  }
-
   // ── Simulación ────────────────────────────────────────────────────────────
   function startSim() {
     clearSim();
-    sim.total   = Math.max(5, Math.min(500, parseInt(document.getElementById('n-input').value) || 100));
-    sim.running = true;
-    sim.fired   = 0;
+    simGen++;
+    var myGen = simGen;
+    sim.total  = Math.max(5, Math.min(500, parseInt(document.getElementById('n-input').value) || 100));
 
     document.getElementById('btn-start').disabled = true;
-    document.getElementById('btn-stop').disabled  = false;
+    document.getElementById('btn-stop').disabled  = true;
     document.getElementById('btn-csv').disabled   = true;
-    document.getElementById('empty-msg').style.display = 'none';
-    document.getElementById('report-table').style.display = '';
+    document.getElementById('summary').style.display = 'none';
+    document.getElementById('empty-msg').textContent  = 'Cargando puntos desde la BD…';
+    document.getElementById('empty-msg').style.display = '';
+    document.getElementById('report-table').style.display = 'none';
 
-    var delay = parseInt(document.getElementById('speed-input').value) || 150;
-    fireNext(delay);
+    fetch(SAMPLE_API + '?n=' + sim.total)
+      .then(function(r) { return r.json(); })
+      .then(function(pts) {
+        if (myGen !== simGen) return;
+        if (!Array.isArray(pts) || pts.length === 0) {
+          document.getElementById('empty-msg').textContent = 'Error: no se obtuvieron puntos de la BD.';
+          document.getElementById('btn-start').disabled = false;
+          return;
+        }
+        sim.points  = pts;
+        sim.total   = pts.length;
+        sim.running = true;
+        sim.fired   = 0;
+        sim.tStart  = Date.now();
+        inFlight    = 0;
+
+        document.getElementById('btn-stop').disabled  = false;
+        document.getElementById('empty-msg').style.display = 'none';
+        document.getElementById('report-table').style.display = '';
+
+        var delay = parseInt(document.getElementById('speed-input').value) || 150;
+        fireNext(myGen, delay);
+      })
+      .catch(function(err) {
+        if (myGen !== simGen) return;
+        document.getElementById('empty-msg').textContent = 'Error al cargar puntos: ' + (err.message || err);
+        document.getElementById('btn-start').disabled = false;
+      });
   }
 
-  function fireNext(delay) {
+  function fireNext(myGen, delay) {
+    if (myGen !== simGen) return;
     if (!sim.running || sim.fired >= sim.total) {
-      if (sim.fired >= sim.total) finishSim();
+      if (sim.fired >= sim.total && sim.received >= sim.total) finishSim();
       return;
     }
-    var id  = sim.fired + 1;
-    var pt  = randPt();
+    if (inFlight >= MAX_FLIGHT) {
+      sim.fireTimer = setTimeout(function() { fireNext(myGen, delay); }, 100);
+      return;
+    }
+
+    var id = sim.fired + 1;
+    var pt = sim.points[sim.fired];
     sim.fired++;
+    inFlight++;
 
     addPendingPoint(id, pt.lat, pt.lon);
     addRowPending(id, pt.lat, pt.lon);
@@ -313,6 +371,8 @@
     fetch(url)
       .then(function(r) { return r.json(); })
       .then(function(data) {
+        inFlight--;
+        if (myGen !== simGen) return;
         var ms  = Date.now() - t0;
         var dir = data.display_name || '';
         var src = data.source || 'f58';
@@ -327,9 +387,11 @@
         else sim.cnt.f58++;
         sim.totalMs += ms; sim.msCount++;
         updateStats();
-        checkFinish();
+        checkFinish(myGen);
       })
       .catch(function(err) {
+        inFlight--;
+        if (myGen !== simGen) return;
         var ms = Date.now() - t0;
         sim.received++;
         sim.cnt.err++;
@@ -338,10 +400,10 @@
         updatePoint(id, 'error', '⚠ ' + (err.message || 'timeout'), 'error', ms);
         updateRow(id, '⚠ ' + (err.message || 'error'), 'error', ms);
         updateStats();
-        checkFinish();
+        checkFinish(myGen);
       });
 
-    sim.fireTimer = setTimeout(function() { fireNext(delay); }, delay);
+    sim.fireTimer = setTimeout(function() { fireNext(myGen, delay); }, delay);
   }
 
   function stopSim() {
@@ -357,27 +419,75 @@
     document.getElementById('btn-start').disabled = false;
     document.getElementById('btn-stop').disabled  = true;
     document.getElementById('btn-csv').disabled   = false;
+    document.getElementById('progress-bar').style.width = '100%';
+    showSummary();
   }
 
-  function checkFinish() {
-    if (!sim.running && sim.received >= sim.fired) finishSim();
-    if (sim.running && sim.received >= sim.total) finishSim();
+  function checkFinish(gen) {
+    if (gen !== simGen) return;
+    if (sim.received >= sim.total && !sim.running) finishSim();
+    if (sim.received >= sim.total &&  sim.running) finishSim();
   }
 
   function clearSim() {
-    stopSim();
-    sim = { running: false, total: 0, fired: 0, received: 0, fireTimer: null, results: [],
-            cnt: { f58: 0, nominatim: 0, sininfo: 0, err: 0 }, totalMs: 0, msCount: 0 };
+    simGen++;
+    sim.running = false;
+    inFlight = 0;
+    if (sim.fireTimer) clearTimeout(sim.fireTimer);
+    sim = { running: false, total: 0, fired: 0, received: 0, fireTimer: null, results: [], points: [],
+            cnt: { f58: 0, nominatim: 0, sininfo: 0, err: 0 }, totalMs: 0, msCount: 0, tStart: 0 };
     geojson.features = [];
     featureIdx = {};
     updateMapSource();
     document.getElementById('report-body').innerHTML = '';
+    document.getElementById('empty-msg').textContent = 'Configura los parámetros y pulsa ▶ Iniciar';
     document.getElementById('empty-msg').style.display = '';
     document.getElementById('report-table').style.display = 'none';
+    document.getElementById('summary').style.display = 'none';
     document.getElementById('progress-bar').style.width = '0%';
     ['total','f58','nom','si','err'].forEach(function(k){ document.getElementById('st-'+k).textContent='0'; });
     document.getElementById('st-avg').textContent = '—';
     document.getElementById('btn-csv').disabled = true;
+    document.getElementById('btn-start').disabled = false;
+    document.getElementById('btn-stop').disabled  = true;
+  }
+
+  // ── Resumen final ──────────────────────────────────────────────────────────
+  function showSummary() {
+    var n    = sim.results.length;
+    if (!n) return;
+    var elapsed = (Date.now() - sim.tStart) / 1000;
+    var times = sim.results.map(function(r){ return r.tiempo_ms; }).sort(function(a,b){return a-b;});
+    function pct(n){ return n > 0 ? ' (' + Math.round(n/sim.total*100) + '%)' : ''; }
+    function perc(arr, p){ return arr[Math.floor(arr.length * p)] || 0; }
+
+    var rows = [
+      { k:'Total puntos',      v: sim.total,           c:'' },
+      { k:'Con dirección',     v: sim.cnt.f58 + sim.cnt.nominatim + pct(sim.cnt.f58+sim.cnt.nominatim), c:'c-green' },
+      { k:'→ F58',             v: sim.cnt.f58          + pct(sim.cnt.f58),       c:'c-green' },
+      { k:'→ Nominatim',       v: sim.cnt.nominatim    + pct(sim.cnt.nominatim), c:'c-blue'  },
+      { k:'Sin información',   v: sim.cnt.sininfo       + pct(sim.cnt.sininfo),   c:'c-gray'  },
+      { k:'Errores',           v: sim.cnt.err           + pct(sim.cnt.err),       c:'c-red'   },
+      { k:'__div__', v:'', c:'' },
+      { k:'Tiempo mínimo',     v: times[0]                    + ' ms', c:'c-gold' },
+      { k:'p50 (mediana)',      v: perc(times,.50)             + ' ms', c:'c-gold' },
+      { k:'p95',               v: perc(times,.95)             + ' ms', c:'c-gold' },
+      { k:'p99',               v: perc(times,.99)             + ' ms', c:'c-gold' },
+      { k:'Tiempo máximo',     v: times[times.length-1]       + ' ms', c:'c-gold' },
+      { k:'Promedio',          v: Math.round(sim.totalMs/sim.msCount) + ' ms', c:'c-gold' }
+    ];
+
+    var html = rows.map(function(r) {
+      if (r.k === '__div__') return '<div class="sum-divider"></div>';
+      return '<div class="sum-row"><span class="sum-key">' + r.k + '</span>'
+        + '<span class="sum-val ' + r.c + '">' + r.v + '</span></div>';
+    }).join('');
+    html += '<div class="sum-throughput">Duración total: '
+      + elapsed.toFixed(1) + 's · Throughput: '
+      + (n/elapsed).toFixed(1) + ' req/s</div>';
+
+    document.getElementById('sum-grid').innerHTML = html;
+    document.getElementById('summary').style.display = 'block';
   }
 
   // ── Stats & progreso ──────────────────────────────────────────────────────
