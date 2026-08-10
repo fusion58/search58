@@ -8,8 +8,8 @@ def get_pool():
     global _pool
     if _pool is None:
         _pool = psycopg2.pool.ThreadedConnectionPool(
-            minconn=2,
-            maxconn=10,
+            minconn=4,
+            maxconn=20,
             host=os.environ.get('POSTGRES_HOST', 'postgres'),
             port=int(os.environ.get('POSTGRES_PORT', '5432')),
             user=os.environ.get('POSTGRES_USER', 'postgres'),
