@@ -79,7 +79,7 @@ def run(url, n, workers):
 
     print(f'\n{"-"*50}')
     print(f'Total:      {n} peticiones en {elapsed:.2f}s')
-    print(f'Throughput: {n/elapsed:.1f} req/s')
+    print(f'Throughput: {n/elapsed:.1f} req/s  ({n/elapsed:.1f} puntos bautizados/s)')
     print(f'Latencia:')
     print(f'  p50  {pct(50):.0f} ms')
     print(f'  p95  {pct(95):.0f} ms')
