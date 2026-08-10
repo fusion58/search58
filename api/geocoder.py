@@ -13,10 +13,14 @@ def score_address(addr: dict) -> int:
     s = 0
     if addr.get('road'):                                 s += 10
     if addr.get('neighbourhood') or addr.get('suburb'):  s += 5
-    if addr.get('city'):                                 s += 3
+    # No contar city si F58 puso una Parroquia en ese campo (dato incorrecto)
+    city = addr.get('city', '')
+    if city and 'parroquia' not in city.lower():         s += 3
     if addr.get('county'):                               s += 2
     if addr.get('state'):                                s += 2
     if addr.get('country'):                              s += 1
+    # Código postal: Nominatim lo incluye, F58 no → ventaja real de información
+    if addr.get('postcode'):                             s += 2
     return s
 
 
@@ -94,6 +98,7 @@ def geocode_nominatim(lat: float, lon: float) -> dict | None:
             'state':         a.get('state') or '',
             'country':       a.get('country') or '',
             'country_code':  a.get('country_code') or '',
+            'postcode':      a.get('postcode') or '',
         },
     }
 
