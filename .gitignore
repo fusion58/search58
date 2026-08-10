@@ -5,3 +5,7 @@ data/
 *.osm.pbf
 *.osrm
 *.osrm.*
+*.csv
+*.png
+__pycache__/
+frontend/__pycache__/
