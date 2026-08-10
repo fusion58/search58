@@ -153,8 +153,8 @@
             <button id="base-l-f58" class="mini" onclick="setBase('l','f58')">F58</button>
           </div>
           <div class="togs">
-            <button id="terr-l" class="mini on" onclick="toggleTerr('l')">Relieve</button>
-            <button id="bldg-l" class="mini on" onclick="toggleBldg('l')">Edificios</button>
+            <button id="terr-l" class="mini" onclick="toggleTerr('l')">Relieve</button>
+            <button id="bldg-l" class="mini" onclick="toggleBldg('l')">Edificios</button>
           </div>
         </div>
       </div>
@@ -182,8 +182,8 @@
             <button id="base-r-f58" class="mini" onclick="setBase('r','f58')">F58</button>
           </div>
           <div class="togs">
-            <button id="terr-r" class="mini on" onclick="toggleTerr('r')">Relieve</button>
-            <button id="bldg-r" class="mini on" onclick="toggleBldg('r')">Edificios</button>
+            <button id="terr-r" class="mini" onclick="toggleTerr('r')">Relieve</button>
+            <button id="bldg-r" class="mini" onclick="toggleBldg('r')">Edificios</button>
           </div>
         </div>
       </div>
@@ -197,8 +197,8 @@
   var CENTER  = [-66.9036, 10.4880], ZOOM = 12;
 
   var st = {
-    l: { map:null, base:'geofabrik', terr:true, bldg:true, loaded:false },
-    r: { map:null, base:'geofabrik', terr:true, bldg:true, loaded:false }
+    l: { map:null, base:'geofabrik', terr:false, bldg:false, loaded:false },
+    r: { map:null, base:'geofabrik', terr:false, bldg:false, loaded:false }
   };
   var currentPoint = null;
   var markers      = { l:null, r:null };

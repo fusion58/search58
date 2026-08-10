@@ -171,6 +171,34 @@ def geocode_hybrid(lat, lon):
     return f58
 
 
+def sample_reference_points(n):
+    """Devuelve N puntos aleatorios de buscador.referencepoints (Venezuela)."""
+    n = max(1, min(n, 500))
+    sql = (
+        "SELECT ROUND(ST_Y(the_geom)::numeric, 7)::text, "
+        "       ROUND(ST_X(the_geom)::numeric, 7)::text "
+        "FROM buscador.referencepoints "
+        "WHERE codecountry = 862 AND the_geom IS NOT NULL "
+        "ORDER BY RANDOM() LIMIT {};".format(n)
+    )
+    raw = run_sql(sql)
+    if not raw:
+        return []
+    points = []
+    for line in raw.split('\n'):
+        line = line.strip()
+        if not line:
+            continue
+        parts = line.split('|')
+        if len(parts) < 2:
+            continue
+        try:
+            points.append({'lat': float(parts[0]), 'lon': float(parts[1])})
+        except ValueError:
+            continue
+    return points
+
+
 def search_places(q, limit=10):
     sql = (
         "SELECT nombre, ubicacion, tipo, px, py, "
@@ -223,6 +251,8 @@ class Handler(http.server.SimpleHTTPRequestHandler):
             self._handle_reverse()
         elif path == '/search':
             self._handle_search()
+        elif path == '/sample-points':
+            self._handle_sample_points()
         elif path.startswith('/geoserver/'):
             self._proxy_geoserver()
         else:
@@ -239,6 +269,18 @@ class Handler(http.server.SimpleHTTPRequestHandler):
         try:
             data = geocode_hybrid(lat, lon)
             self._json(200, data)
+        except Exception as e:
+            self._json(500, {'error': str(e)})
+
+    def _handle_sample_points(self):
+        params = dict(urllib.parse.parse_qsl(urllib.parse.urlparse(self.path).query))
+        try:
+            n = int(params.get('n', '100'))
+        except ValueError:
+            n = 100
+        try:
+            points = sample_reference_points(n)
+            self._json(200, points)
         except Exception as e:
             self._json(500, {'error': str(e)})
 
