@@ -131,6 +131,7 @@
     <div class="ctrl-group">
       <span class="ctrl-label">Disparo</span>
       <select id="speed-input" class="ctrl-input">
+        <option value="25">25 ms</option>
         <option value="50">50 ms</option>
         <option value="150" selected>150 ms</option>
         <option value="300">300 ms</option>
@@ -483,8 +484,8 @@
         + '<span class="sum-val ' + r.c + '">' + r.v + '</span></div>';
     }).join('');
     html += '<div class="sum-throughput">Duración total: '
-      + elapsed.toFixed(1) + 's · Throughput: '
-      + (n/elapsed).toFixed(1) + ' req/s</div>';
+      + elapsed.toFixed(1) + 's &nbsp;·&nbsp; '
+      + (n/elapsed).toFixed(1) + ' puntos/s bautizados</div>';
 
     document.getElementById('sum-grid').innerHTML = html;
     document.getElementById('summary').style.display = 'block';
