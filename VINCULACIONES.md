@@ -14,7 +14,10 @@ Paths de datos que deben respaldarse en el server QA (completar al definir el st
 
 ## Versiones de imágenes
 
-- Registrar aquí cada imagen fija al definir el compose. Al subir versión: actualizar compose, `MODIFICACIONES.md`, validar en QA antes de prod.
+- `postgis/postgis:17-3.5` — BD Search58 (compose `infra/docker-compose.yml`)
+- `search58-api:1.0` — API FastAPI (Dockerfile raíz)
+  Al subir versión: actualizar Dockerfile/compose, rebuild en QA (`docker build`), validar `/health` antes de reiniciar `search58-api`.
+- Al cambiar `api/*.py` → rebuild imagen → redeploy en QA.
 
 ## Acceso / red
 

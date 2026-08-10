@@ -165,7 +165,7 @@
       <div id="map-r" class="map"></div>
       <div class="badge right">
         <div class="ds">F58 · Search58</div>
-        <div class="sub" id="sub-r">localhost:7171</div>
+        <div class="sub" id="sub-r"></div>
         <div class="addr hint" id="addr-r">Haz clic en el mapa</div>
         <div class="meta"><span class="timing" id="time-r"></span></div>
         <div class="fields" id="fields-r" style="display:none"></div>
@@ -192,7 +192,7 @@
 
 <script>
   var OSM_URL = 'https://nominatim.openstreetmap.org/reverse';
-  var F58_URL = 'http://localhost:7171/reverse';
+  var F58_URL = window.location.origin + '/reverse';
   var LIBERTY = 'https://tiles.openfreemap.org/styles/liberty';
   var CENTER  = [-66.9036, 10.4880], ZOOM = 12;
 
@@ -212,34 +212,51 @@
     var s = 0;
     if (addr.road)                            s += 10;
     if (addr.neighbourhood || addr.suburb)    s += 5;
-    if (addr.city)                            s += 3;
+    var city = addr.city || '';
+    if (city && city.toLowerCase().indexOf('parroquia') === -1) s += 3;
     if (addr.county)                          s += 2;
     if (addr.state)                           s += 2;
     if (addr.country)                         s += 1;
-    return s; // máx 23
+    if (addr.postcode)                        s += 2;
+    return s; // máx 25
   }
 
   function evaluateWinner() {
+    if (collected.lErr && collected.rErr) return;
+
+    // Score del panel izquierdo (Nominatim directo — re-calculamos en JS)
     var sL = collected.lErr ? -1 : scoreAddress(collected.l && collected.l.address);
-    var sR = collected.rErr ? -1 : scoreAddress(collected.r && collected.r.address);
 
-    ['l','r'].forEach(function(side) {
-      var score = side === 'l' ? sL : sR;
-      if (score < 0) return;
-      var pct = Math.round((score / 23) * 100);
-      document.getElementById('score-val-' + side).textContent = score + '/23 pts';
-      document.getElementById('fill-' + side).style.width = pct + '%';
-      document.getElementById('score-' + side).style.display = 'flex';
-    });
+    // Score del panel derecho viene directo de la API (ya lo calculó el híbrido)
+    var rData = collected.r;
+    var sR = collected.rErr ? -1
+           : (rData && rData.score != null ? rData.score : scoreAddress(rData && rData.address));
 
-    // Decisión: F58 (derecha) es suficiente si score >= 13 (tiene calle + ciudad)
-    // En empate se prefiere F58 (local, privado)
-    var winner;
-    if (sL < 0 && sR < 0) return;
-    else if (sL < 0)  winner = 'r';
-    else if (sR < 0)  winner = 'l';
-    else if (sR >= 13) winner = 'r';           // F58 suficientemente completo
-    else winner = (sR >= sL) ? 'r' : 'l';     // mayor score, empate → F58
+    // Mostrar barras de score
+    if (!collected.lErr && sL >= 0) {
+      document.getElementById('score-val-l').textContent = sL + '/23 pts';
+      document.getElementById('fill-l').style.width = Math.round(sL / 23 * 100) + '%';
+      document.getElementById('score-l').style.display = 'flex';
+    }
+    if (!collected.rErr && sR >= 0) {
+      document.getElementById('score-val-r').textContent = sR + '/23 pts';
+      document.getElementById('fill-r').style.width = Math.round(sR / 23 * 100) + '%';
+      document.getElementById('score-r').style.display = 'flex';
+    }
+
+    // El ganador lo decide la API a través del campo source:
+    //   source="f58"       → Search58 usó datos propios → gana panel derecho
+    //   source="nominatim" → Search58 recurrió a Nominatim → gana panel izquierdo
+    //                        (ambos paneles muestran el mismo resultado)
+    var src = rData && rData.source;
+    var winner = (src === 'nominatim') ? 'l' : 'r';
+    if (collected.rErr) winner = 'l';
+    if (collected.lErr) winner = 'r';
+
+    var winnerTagL = document.getElementById('winner-l');
+    var winnerTagR = document.getElementById('winner-r');
+    winnerTagL.textContent = '✓ Search58 eligió Nominatim';
+    winnerTagR.textContent = '✓ Search58 eligió F58';
 
     ['l','r'].forEach(function(side) {
       var cls = side === 'l' ? 'left' : 'right';
@@ -408,7 +425,7 @@
         addrEl.textContent = '⚠ ' + (err.message || 'Error de conexión');
         if (side === 'r') {
           document.getElementById('sub-r').innerHTML =
-            '<span style="color:var(--red)">⚠ sin respuesta — inicia server-dev.py (puerto 7171)</span>';
+            '<span style="color:var(--red)">⚠ sin respuesta — ' + window.location.origin + '</span>';
         }
         collected[side + 'Err'] = true;
         collected[side] = null;
@@ -430,19 +447,34 @@
 
     addrEl.className = 'addr';
     addrEl.textContent = data.display_name || 'Sin información';
-    timeEl.textContent = ms + ' ms';
+
+    // Panel derecho: mostrar fuente elegida por el híbrido y scores
+    if (side === 'r') {
+      var src     = data.source || 'f58';
+      var score   = data.score != null ? data.score : '—';
+      var f58sc   = data.f58_score != null ? data.f58_score : null;
+      var srcColor = src === 'nominatim' ? 'var(--blue)' : 'var(--teal)';
+      var srcLabel = src === 'nominatim' ? 'Nominatim (fallback)' : 'F58';
+      var scoreInfo = 'score ' + score + '/23';
+      if (f58sc != null) scoreInfo += ' · F58 fue ' + f58sc + '/23';
+      timeEl.innerHTML = ms + ' ms &nbsp;·&nbsp; '
+        + '<span style="color:' + srcColor + ';font-weight:800">' + srcLabel + '</span>'
+        + ' <span style="color:var(--text-dim);font-size:9px">(' + scoreInfo + ')</span>';
+    } else {
+      timeEl.textContent = ms + ' ms';
+    }
 
     if (data.address) {
       var a = data.address;
       var rows;
       if (side === 'l') {
         rows = [
-          ['vía',     a.road || a.pedestrian || a.footway || a.path || '—'],
+          ['vía',      a.road || a.pedestrian || a.footway || a.path || '—'],
           ['sector',   a.suburb || a.neighbourhood || a.quarter || '—'],
           ['ciudad',   a.city || a.town || a.village || a.municipality || '—'],
           ['municipio',a.county || '—'],
           ['estado',   a.state || '—'],
-          ['país', a.country || '—']
+          ['país',     a.country || '—']
         ];
       } else {
         rows = [
@@ -493,7 +525,7 @@
       document.getElementById('fields-' + side).innerHTML = '';
     });
     document.getElementById('coords-box').textContent = '— , —';
-    document.getElementById('sub-r').textContent = 'localhost:7171';
+    document.getElementById('sub-r').textContent = window.location.origin;
   }
 
   // ── Sincronización de vista ────────────────────────────────────────────────
@@ -506,6 +538,8 @@
     });
   }
 
+  document.getElementById('sub-r').textContent = window.location.origin;
+
   makeMap('map-l', 'l');
   makeMap('map-r', 'r');
   linkMove('l', 'r');
@@ -513,7 +547,7 @@
 
   // ── Búsqueda de texto ─────────────────────────────────────────────────────
   var OSM_SEARCH = 'https://nominatim.openstreetmap.org/search';
-  var F58_SEARCH = 'http://localhost:7171/search';
+  var F58_SEARCH = window.location.origin + '/search';
   var searchMarkers = { l:[], r:[] };
 
   function doSearch(e) {
