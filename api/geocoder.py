@@ -122,6 +122,19 @@ def geocode_hybrid(lat: float, lon: float) -> dict:
     return f58
 
 
+def sample_points(n: int) -> list:
+    n = max(1, min(n, 500))
+    sql = (
+        "SELECT ROUND(ST_Y(the_geom)::numeric, 7)::float, "
+        "       ROUND(ST_X(the_geom)::numeric, 7)::float "
+        "FROM buscador.referencepoints "
+        "WHERE codecountry = 862 AND the_geom IS NOT NULL "
+        "ORDER BY RANDOM() LIMIT %s;"
+    )
+    rows = run_sql(sql, (n,))
+    return [{'lat': row[0], 'lon': row[1]} for row in rows]
+
+
 def search_places(q: str, limit: int = 10) -> list:
     sql = (
         "SELECT nombre, ubicacion, tipo, px, py, "

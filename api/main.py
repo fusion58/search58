@@ -5,7 +5,7 @@ from fastapi import FastAPI, Query, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import Response
 from fastapi.staticfiles import StaticFiles
-from geocoder import geocode_hybrid, search_places
+from geocoder import geocode_hybrid, search_places, sample_points
 from db import run_sql
 
 GEOSERVER_URL = os.environ.get('GEOSERVER_URL', 'http://localhost:8080')
@@ -50,6 +50,11 @@ def search(
     limit: int = Query(10, ge=1, le=50),
 ):
     return search_places(q, limit)
+
+
+@app.get('/sample-points')
+def get_sample_points(n: int = Query(100, ge=1, le=500)):
+    return sample_points(n)
 
 
 @app.api_route('/geoserver/{path:path}', methods=['GET', 'HEAD'])
