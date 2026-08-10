@@ -34,6 +34,8 @@ services:
       NOMINATIM_TIMEOUT: ${NOMINATIM_TIMEOUT:-5}
       HYBRID_THRESHOLD:  ${HYBRID_THRESHOLD:-13}
       GEOSERVER_URL:     ${GEOSERVER_URL:-http://localhost:8080}
+    volumes:
+      - /opt/search58/frontend:/app/frontend:ro
     ports:
       - "${SEARCH58_PORT:-7171}:7171"
     depends_on:
