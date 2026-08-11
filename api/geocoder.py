@@ -135,18 +135,48 @@ def sample_points(n: int) -> list:
     return [{'lat': row[0], 'lon': row[1]} for row in rows]
 
 
+_STOPWORDS = {
+    'las', 'los', 'la', 'el', 'de', 'del', 'y', 'a', 'en',
+    'con', 'por', 'para', 'que', 'se', 'al', 'un', 'una',
+}
+
+def _geo_score(query_words: set, ubicacion: str) -> float:
+    """Fracción de palabras significativas del query que aparecen en la ubicacion.
+    Usa match por prefijo (stem simple) para cubrir singular/plural:
+    'residencias' matchea 'residencia', 'caracas' matchea 'caracas', etc.
+    """
+    if not ubicacion or not query_words:
+        return 0.0
+    ub = ubicacion.lower()
+    matches = 0
+    for w in query_words:
+        # Stem: quitar hasta 2 chars del final para cubrir variaciones morfológicas
+        stem = w[:max(5, len(w) - 1)]
+        if stem in ub:
+            matches += 1
+    return matches / len(query_words)
+
+def _significant_words(q: str) -> set:
+    """Palabras del query que no son stopwords y tienen 3+ caracteres."""
+    return {w for w in q.lower().split() if w not in _STOPWORDS and len(w) >= 3}
+
+
 def search_places(q: str, limit: int = 10) -> list:
+    # Pedimos más candidatos para poder re-rankear geográficamente
+    fetch = max(limit * 5, 50)
     sql = (
         "SELECT nombre, ubicacion, tipo, px, py, "
         "x_min, y_min, x_max, y_max "
         "FROM buscador.f_search_in_country(%s, 862, %s);"
     )
-    rows = run_sql(sql, (q, limit))
+    rows = run_sql(sql, (q, fetch))
+    sig_words = _significant_words(q)
     results = []
     for row in rows:
         nombre, ubicacion, tipo, px, py, x_min, y_min, x_max, y_max = row
         if px is None or py is None:
             continue
+        geo = _geo_score(sig_words, ubicacion)
         results.append({
             'display_name': ubicacion or nombre,
             'name':         nombre,
@@ -156,5 +186,15 @@ def search_places(q: str, limit: int = 10) -> list:
             'type':         tipo or 'place',
             'class':        'place',
             'source':       'f58',
+            '_geo':         geo,
         })
-    return results
+
+    # Re-rankear: primero por palabras geográficas del query encontradas en la ubicación,
+    # luego preservar el orden original de f_search_in_country (relevancia textual del nombre)
+    results.sort(key=lambda r: r['_geo'], reverse=True)
+
+    # Limpiar campo interno antes de retornar
+    for r in results:
+        del r['_geo']
+
+    return results[:limit]
