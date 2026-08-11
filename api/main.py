@@ -46,7 +46,7 @@ def reverse(
 
 @app.get('/search')
 def search(
-    q:     str = Query(..., min_length=1),
+    q:     str = Query(..., min_length=3),
     limit: int = Query(10, ge=1, le=50),
 ):
     return search_places(q, limit)

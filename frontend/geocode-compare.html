@@ -553,7 +553,7 @@
   function doSearch(e) {
     e.preventDefault();
     var q = document.getElementById('search-input').value.trim();
-    if (!q) return;
+    if (!q || q.length < 3) return;
     resetWinner();
     clearSearchMarkers();
     ['l','r'].forEach(function(side) {
