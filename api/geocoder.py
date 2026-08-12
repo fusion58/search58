@@ -222,9 +222,13 @@ def _search_nominatim(q: str, limit: int) -> list:
         if not lat or not lon:
             continue
         bb = item.get('boundingbox', [lat, lat, lon, lon])
+        raw = item.get('display_name', '')
+        # Normalizar separadores: comas → puntos, igual que F58
+        display = raw.replace(', ', '. ')
+        name = raw.split(',')[0].strip()
         results.append({
-            'display_name': item.get('display_name', ''),
-            'name':         item.get('display_name', '').split(',')[0].strip(),
+            'display_name': display,
+            'name':         name,
             'lat':          lat,
             'lon':          lon,
             'boundingbox':  bb,
