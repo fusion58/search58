@@ -1,4 +1,5 @@
 import os
+import urllib.parse
 import httpx
 from db import run_sql
 
@@ -189,12 +190,46 @@ def search_places(q: str, limit: int = 10) -> list:
             '_geo':         geo,
         })
 
-    # Re-rankear: primero por palabras geográficas del query encontradas en la ubicación,
-    # luego preservar el orden original de f_search_in_country (relevancia textual del nombre)
+    # Re-rankear por coincidencia geográfica y retornar top N
     results.sort(key=lambda r: r['_geo'], reverse=True)
-
-    # Limpiar campo interno antes de retornar
     for r in results:
         del r['_geo']
 
-    return results[:limit]
+    if results:
+        return results[:limit]
+
+    # F58 no encontró nada → fallback a Nominatim
+    return _search_nominatim(q, limit)
+
+
+def _search_nominatim(q: str, limit: int) -> list:
+    """Fallback a Nominatim cuando F58 no devuelve resultados."""
+    url = (f'{NOMINATIM_URL}/search'
+           f'?format=json&q={urllib.parse.quote(q)}'
+           f'&limit={limit}&addressdetails=1&accept-language=es')
+    try:
+        with httpx.Client(timeout=NOMINATIM_TIMEOUT,
+                          headers={'User-Agent': 'Search58/1.0 (geocoding proxy)'}) as client:
+            resp = client.get(url)
+            data = resp.json()
+    except Exception:
+        return []
+
+    results = []
+    for item in data:
+        lat = item.get('lat', '')
+        lon = item.get('lon', '')
+        if not lat or not lon:
+            continue
+        bb = item.get('boundingbox', [lat, lat, lon, lon])
+        results.append({
+            'display_name': item.get('display_name', ''),
+            'name':         item.get('display_name', '').split(',')[0].strip(),
+            'lat':          lat,
+            'lon':          lon,
+            'boundingbox':  bb,
+            'type':         item.get('type') or item.get('class') or 'place',
+            'class':        item.get('class') or 'place',
+            'source':       'nominatim',
+        })
+    return results
