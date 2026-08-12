@@ -104,6 +104,22 @@ def geocode_nominatim(lat: float, lon: float) -> dict | None:
     }
 
 
+def _get_tiletype(lat: float, lon: float) -> int | None:
+    """Retorna tiletype del tile que contiene el punto.
+    tiletype=1 → tierra firme (flujo híbrido normal)
+    tiletype=0 → agua/costa/zona insular (F58 es autoritativo, no llamar Nominatim)
+    None       → fuera de todos los tiles
+    """
+    sql = (
+        "SELECT tiletype FROM buscador.country_tiles "
+        "WHERE the_geom && ST_SetSRID(ST_MakePoint(%s, %s), 4326) "
+        "AND ST_Contains(the_geom, ST_SetSRID(ST_MakePoint(%s, %s), 4326)) "
+        "LIMIT 1"
+    )
+    rows = run_sql(sql, (lon, lat, lon, lat))
+    return rows[0][0] if rows else None
+
+
 def geocode_hybrid(lat: float, lon: float) -> dict:
     f58 = geocode_f58(lat, lon)
     f58_score = score_address(f58.get('address', {}))
@@ -111,6 +127,14 @@ def geocode_hybrid(lat: float, lon: float) -> dict:
 
     if f58_score >= HYBRID_THRESHOLD:
         return f58
+
+    # Para zonas marítimas/costeras (tiletype=0), F58 es la fuente autoritativa.
+    # country_tiles ya tiene la información correcta (Mar Caribe, Zona Costera, etc.)
+    # Nominatim no tiene información útil para esas coordenadas.
+    if f58.get('display_name', 'Sin información') != 'Sin información':
+        tiletype = _get_tiletype(lat, lon)
+        if tiletype == 0:
+            return f58
 
     nom = geocode_nominatim(lat, lon)
     if nom:
