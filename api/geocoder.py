@@ -7,6 +7,39 @@ NOMINATIM_URL     = os.environ.get('NOMINATIM_URL',     'https://nominatim.opens
 NOMINATIM_TIMEOUT = int(os.environ.get('NOMINATIM_TIMEOUT', '5'))
 HYBRID_THRESHOLD  = int(os.environ.get('HYBRID_THRESHOLD',  '13'))
 
+# Mapeo GeoNames feature_code → tipo en español (para display_name normalizado)
+_GEONAMES_TYPE = {
+    # H — Hidrografía
+    'STM': 'Río', 'STMI': 'Río', 'STMQ': 'Río', 'STMSB': 'Río',
+    'LK': 'Lago', 'LKI': 'Lago', 'LKN': 'Lago',
+    'RSV': 'Embalse', 'RSVH': 'Embalse',
+    'BAY': 'Bahía', 'BAYS': 'Bahía',
+    'GULF': 'Golfo', 'COVE': 'Ensenada',
+    'CHAN': 'Canal', 'SD': 'Caño',
+    'FALL': 'Cascada', 'FALLS': 'Cascada',
+    'SWMP': 'Pantano', 'MRSH': 'Marisma',
+    'CAPE': 'Cabo', 'PEN': 'Península',
+    'LAGN': 'Laguna', 'LGNX': 'Laguna',
+    # T — Relieve
+    'MT': 'Cerro', 'MTS': 'Serranía', 'PK': 'Pico',
+    'HLL': 'Colina', 'HLLS': 'Colinas',
+    'ISL': 'Isla', 'ISLS': 'Islas', 'ISLET': 'Islote',
+    'PT': 'Punta', 'HDLD': 'Cabo',
+    'VLC': 'Volcán', 'MESA': 'Mesa', 'PLN': 'Llano',
+    'VAL': 'Valle', 'RDGE': 'Serranía',
+    # L — Áreas
+    'PRK': 'Parque Nacional', 'PRKX': 'Parque',
+    'RESV': 'Reserva', 'RESW': 'Reserva',
+    'AREA': 'Área', 'RGN': 'Región',
+    'LCTY': 'Localidad', 'CONT': 'Área',
+    # P — Poblados
+    'PPL': 'Población', 'PPLL': 'Población', 'PPLX': 'Sector',
+    'PPLA': 'Capital de Estado', 'PPLA2': 'Capital de Municipio',
+    'PPLA3': 'Capital de Parroquia', 'PPLC': 'Capital',
+    # V — Vegetación
+    'FRST': 'Bosque', 'GRSLD': 'Sabana',
+}
+
 
 def score_address(addr: dict) -> int:
     if not addr:
@@ -165,6 +198,17 @@ _STOPWORDS = {
     'con', 'por', 'para', 'que', 'se', 'al', 'un', 'una',
 }
 
+# Palabras que indican que el query busca geografía natural → GeoNames primero
+_GEO_INDICATORS = {
+    'rio', 'rios', 'cerro', 'cerros', 'pico', 'picos',
+    'lago', 'lagos', 'laguna', 'lagunas', 'embalse', 'represa',
+    'isla', 'islas', 'islote', 'montana', 'montanas', 'serranía', 'sierra',
+    'parque', 'reserva', 'cordillera', 'tepuy', 'tepui',
+    'golfo', 'bahia', 'cabo', 'cascada', 'salto', 'catarata',
+    'caño', 'cano', 'quebrada', 'delta', 'peninsula',
+    'nacional', 'natural',
+}
+
 def _geo_score(query_words: set, ubicacion: str) -> float:
     """Fracción de palabras significativas del query que aparecen en la ubicacion.
     Usa match por prefijo (stem simple) para cubrir singular/plural:
@@ -188,6 +232,13 @@ def _significant_words(q: str) -> set:
 
 def search_places(q: str, limit: int = 10) -> list:
     # Pedimos más candidatos para poder re-rankear geográficamente
+    # Si el query contiene indicadores de geografía natural → GeoNames primero
+    q_lower_words = set(q.lower().split())
+    if q_lower_words & _GEO_INDICATORS:
+        geo_results = _search_geonames(q, limit)
+        if geo_results:
+            return geo_results
+
     fetch = max(limit * 5, 50)
     sql = (
         "SELECT nombre, ubicacion, tipo, px, py, "
@@ -222,8 +273,46 @@ def search_places(q: str, limit: int = 10) -> list:
     if results:
         return results[:limit]
 
-    # F58 no encontró nada → fallback a Nominatim
+    # F58 sin resultados → intentar GeoNames (geografía natural)
+    geo_results = _search_geonames(q, limit)
+    if geo_results:
+        return geo_results
+
+    # Nada en GeoNames → fallback final a Nominatim
     return _search_nominatim(q, limit)
+
+
+def _search_geonames(q: str, limit: int) -> list:
+    """Busca en buscador.geonames usando similitud trigram sobre name y asciiname."""
+    sql = (
+        "SELECT geonameid, name, feature_class, feature_code, "
+        "latitude, longitude "
+        "FROM buscador.geonames "
+        "WHERE name %%>> %s OR asciiname %%>> %s "
+        "ORDER BY GREATEST(word_similarity(%s, name), word_similarity(%s, asciiname)) DESC "
+        "LIMIT %s;"
+    )
+    try:
+        rows = run_sql(sql, (q, q, q, q, limit))
+    except Exception:
+        return []
+
+    results = []
+    for row in rows:
+        gid, name, fc, code, lat, lon = row
+        tipo = _GEONAMES_TYPE.get(code, _GEONAMES_TYPE.get(fc, 'Lugar'))
+        display = f'{name}. {tipo}. Venezuela.'
+        results.append({
+            'display_name': display,
+            'name':         name,
+            'lat':          str(lat),
+            'lon':          str(lon),
+            'boundingbox':  [str(lat), str(lat), str(lon), str(lon)],
+            'type':         tipo,
+            'class':        'place',
+            'source':       'geonames',
+        })
+    return results
 
 
 def _search_nominatim(q: str, limit: int) -> list:
