@@ -1,4 +1,5 @@
 import os
+import re
 import urllib.parse
 import httpx
 from db import run_sql
@@ -193,6 +194,32 @@ def sample_points(n: int) -> list:
     return [{'lat': row[0], 'lon': row[1]} for row in rows]
 
 
+# Abreviaciones venezolanas comunes → forma expandida sin tildes (igual que keywords en BD)
+_ABREVIATURAS = [
+    (re.compile(r'\bav\b\.?',    re.I), 'avenida'),
+    (re.compile(r'\burb\b\.?',   re.I), 'urbanizacion'),
+    (re.compile(r'\bcll\b\.?',   re.I), 'calle'),
+    (re.compile(r'\btrv\b\.?',   re.I), 'transversal'),
+    (re.compile(r'\bedo\b\.?',   re.I), 'estado'),
+    (re.compile(r'\bmun\b\.?',   re.I), 'municipio'),
+    (re.compile(r'\bparr\b\.?',  re.I), 'parroquia'),
+    (re.compile(r'\bpje\b\.?',   re.I), 'pasaje'),
+    (re.compile(r'\bppal\b\.?',  re.I), 'principal'),
+    (re.compile(r'\bctro\b\.?',  re.I), 'centro'),
+    (re.compile(r'\bsec\b\.?',   re.I), 'sector'),
+    (re.compile(r'\bblvd\b\.?',  re.I), 'boulevard'),
+    (re.compile(r'\bres\b\.?',   re.I), 'residencias'),
+    (re.compile(r'\bedif\b\.?',  re.I), 'edificio'),
+    (re.compile(r'\bqda\b\.?',   re.I), 'quebrada'),
+]
+
+def _normalizar_query(q: str) -> str:
+    """Expande abreviaciones venezolanas para mejorar word_similarity contra keywords de la BD."""
+    for patron, expansion in _ABREVIATURAS:
+        q = patron.sub(expansion, q)
+    return q
+
+
 _STOPWORDS = {
     'las', 'los', 'la', 'el', 'de', 'del', 'y', 'a', 'en',
     'con', 'por', 'para', 'que', 'se', 'al', 'un', 'una',
@@ -231,11 +258,13 @@ def _significant_words(q: str) -> set:
 
 
 def search_places(q: str, limit: int = 10) -> list:
-    # Pedimos más candidatos para poder re-rankear geográficamente
+    # Expandir abreviaciones antes de cualquier búsqueda
+    q_norm = _normalizar_query(q)
+
     # Si el query contiene indicadores de geografía natural → GeoNames primero
-    q_lower_words = set(q.lower().split())
+    q_lower_words = set(q_norm.lower().split())
     if q_lower_words & _GEO_INDICATORS:
-        geo_results = _search_geonames(q, limit)
+        geo_results = _search_geonames(q_norm, limit)
         if geo_results:
             return geo_results
 
@@ -245,8 +274,8 @@ def search_places(q: str, limit: int = 10) -> list:
         "x_min, y_min, x_max, y_max "
         "FROM buscador.f_search_in_country(%s, 862, %s);"
     )
-    rows = run_sql(sql, (q, fetch))
-    sig_words = _significant_words(q)
+    rows = run_sql(sql, (q_norm, fetch))
+    sig_words = _significant_words(q_norm)
     results = []
     for row in rows:
         nombre, ubicacion, tipo, px, py, x_min, y_min, x_max, y_max = row
