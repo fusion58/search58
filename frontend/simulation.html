@@ -266,11 +266,11 @@
     map.on('mouseenter', 'pts-circle', function(e) {
       map.getCanvas().style.cursor = 'pointer';
       var props = e.features[0].properties;
-      var html = '<div style="font-family:Manrope,sans-serif;font-size:11px;max-width:220px;">'
+      var html = '<div style="font-family:Manrope,sans-serif;font-size:11px;max-width:220px;color:#1a1814;">'
         + '<b>#' + props.id + '</b> ' + props.lat + ', ' + props.lon + '<br/>'
-        + (props.dir || '—') + '<br/>'
-        + '<span style="color:#e0a458">' + (props.src || '—') + '</span>'
-        + (props.ms ? ' · ' + props.ms + 'ms' : '')
+        + '<span style="color:#111;">' + (props.dir || '—') + '</span><br/>'
+        + '<span style="color:#b07820;font-weight:700;">' + (props.src || '—') + '</span>'
+        + (props.ms ? ' · <span style="color:#333;">' + props.ms + 'ms</span>' : '')
         + '</div>';
       popup.setLngLat(e.features[0].geometry.coordinates).setHTML(html).addTo(map);
     });
