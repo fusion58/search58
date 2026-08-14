@@ -202,7 +202,7 @@
         <table id="report-table" style="display:none">
           <thead>
             <tr>
-              <th>#</th><th>Lat</th><th>Lon</th><th>Dirección</th><th>Fuente</th><th>ms</th>
+              <th>#</th><th>Lon</th><th>Lat</th><th>Dirección</th><th>Fuente</th><th>ms</th>
             </tr>
           </thead>
           <tbody id="report-body"></tbody>
@@ -534,8 +534,8 @@
     tr.style.cursor = 'pointer';
     tr.title = 'Centrar en el mapa';
     tr.innerHTML = '<td class="td-id">' + id + '</td>'
-      + '<td class="td-coord">' + lat.toFixed(5) + '</td>'
       + '<td class="td-coord">' + lon.toFixed(5) + '</td>'
+      + '<td class="td-coord">' + lat.toFixed(5) + '</td>'
       + '<td class="td-dir" id="dir-' + id + '"><span style="color:var(--gold)">…</span></td>'
       + '<td class="td-src" id="src-' + id + '"></td>'
       + '<td class="td-ms"  id="ms-'  + id + '"></td>';
