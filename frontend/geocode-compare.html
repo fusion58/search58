@@ -15,7 +15,7 @@
     :root{
       --bg:#0d0c0a; --surface:#141210; --surface2:#1e1b17; --border:#2a2620; --border2:#3a342c;
       --gold:#e0a458; --teal:#2dd4bf; --blue:#3b82f6; --text:#f0ebe4; --text-dim:#9a8f84;
-      --green:#22c55e; --red:#ef4444;
+      --green:#22c55e; --red:#ef4444; --orange:#f97316;
     }
     *{box-sizing:border-box;margin:0;padding:0;}
     body{font-family:'Manrope',system-ui,sans-serif;background:var(--bg);color:var(--text);
@@ -244,10 +244,10 @@
       document.getElementById('score-r').style.display = 'flex';
     }
 
-    // El ganador lo decide la API a través del campo source:
-    //   source="f58"       → Search58 usó datos propios → gana panel derecho
-    //   source="nominatim" → Search58 recurrió a Nominatim → gana panel izquierdo
-    //                        (ambos paneles muestran el mismo resultado)
+    // Ganador según source devuelto por Search58:
+    //   f58      → panel derecho (datos propios F58)
+    //   photon   → panel derecho (Photon superó a Nominatim en score)
+    //   nominatim→ panel izquierdo (misma fuente que el panel OSM)
     var src = rData && rData.source;
     var winner = (src === 'nominatim') ? 'l' : 'r';
     if (collected.rErr) winner = 'l';
@@ -256,7 +256,8 @@
     var winnerTagL = document.getElementById('winner-l');
     var winnerTagR = document.getElementById('winner-r');
     winnerTagL.textContent = '✓ Search58 eligió Nominatim';
-    winnerTagR.textContent = '✓ Search58 eligió F58';
+    if (src === 'photon') winnerTagR.textContent = '✓ Search58 eligió Photon';
+    else winnerTagR.textContent = '✓ Search58 eligió F58';
 
     ['l','r'].forEach(function(side) {
       var cls = side === 'l' ? 'left' : 'right';
@@ -453,8 +454,12 @@
       var src     = data.source || 'f58';
       var score   = data.score != null ? data.score : '—';
       var f58sc   = data.f58_score != null ? data.f58_score : null;
-      var srcColor = src === 'nominatim' ? 'var(--blue)' : 'var(--teal)';
-      var srcLabel = src === 'nominatim' ? 'Nominatim (fallback)' : 'F58';
+      var srcColor = src === 'nominatim' ? 'var(--blue)'
+                  : src === 'photon'    ? 'var(--orange)'
+                  : 'var(--teal)';
+      var srcLabel = src === 'nominatim' ? 'Nominatim (fallback)'
+                  : src === 'photon'    ? 'Photon (fallback)'
+                  : 'F58';
       var scoreInfo = 'score ' + score + '/23';
       if (f58sc != null) scoreInfo += ' · F58 fue ' + f58sc + '/23';
       timeEl.innerHTML = ms + ' ms &nbsp;·&nbsp; '

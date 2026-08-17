@@ -8,6 +8,8 @@ NOMINATIM_URL     = os.environ.get('NOMINATIM_URL',     'https://nominatim.opens
 NOMINATIM_TIMEOUT = int(os.environ.get('NOMINATIM_TIMEOUT', '5'))
 HYBRID_THRESHOLD  = int(os.environ.get('HYBRID_THRESHOLD',  '13'))
 
+PHOTON_URL        = os.environ.get('PHOTON_URL',    'https://photon.komoot.io')
+
 # Mapeo GeoNames feature_code → tipo en español (para display_name normalizado)
 _GEONAMES_TYPE = {
     # H — Hidrografía
@@ -154,6 +156,59 @@ def _get_tiletype(lat: float, lon: float) -> int | None:
     return rows[0][0] if rows else None
 
 
+def geocode_photon(lat: float, lon: float) -> dict | None:
+    """Geocodificación inversa via Photon (komoot). Sin rate limit, base OSM."""
+    url = f'{PHOTON_URL}/reverse?lon={lon}&lat={lat}'
+    try:
+        with httpx.Client(timeout=NOMINATIM_TIMEOUT,
+                          headers={'User-Agent': 'Search58/1.0'}) as client:
+            data = client.get(url).json()
+        features = data.get('features', [])
+        if not features:
+            return None
+        p = features[0].get('properties', {})
+        geo = features[0].get('geometry', {}).get('coordinates', [lon, lat])
+        road = p.get('street') or p.get('name') or ''
+        # Photon usa 'locality' para barrio/sector y 'city' para la ciudad
+        neighbourhood = p.get('locality') or p.get('district') or p.get('suburb') or ''
+        city = p.get('city') or p.get('town') or p.get('village') or ''
+        parts = [road, neighbourhood, city, p.get('county') or '',
+                 p.get('state') or '', p.get('country') or '']
+        display = '. '.join(x for x in parts if x)
+        return {
+            'display_name': display,
+            'lat': str(geo[1]),
+            'lon': str(geo[0]),
+            'source': 'photon',
+            'address': {
+                'road':          road,
+                'neighbourhood': neighbourhood,
+                'city':          city,
+                'county':        p.get('county') or '',
+                'state':         p.get('state') or '',
+                'country':       p.get('country') or '',
+                'country_code':  (p.get('countrycode') or '').lower(),
+                'postcode':      p.get('postcode') or '',
+            },
+        }
+    except Exception:
+        return None
+
+
+def _best_external(candidates: list, f58_score: int) -> dict | None:
+    """Elige el resultado externo con mayor score que supere el de F58."""
+    best, best_score = None, f58_score
+    for c in candidates:
+        if c is None:
+            continue
+        s = score_address(c.get('address', {}))
+        c['score'] = s
+        c['f58_score'] = f58_score
+        if s > best_score:
+            best, best_score = c, s
+    return best
+
+
 def geocode_hybrid(lat: float, lon: float) -> dict:
     f58 = geocode_f58(lat, lon)
     f58_score = score_address(f58.get('address', {}))
@@ -162,23 +217,18 @@ def geocode_hybrid(lat: float, lon: float) -> dict:
     if f58_score >= HYBRID_THRESHOLD:
         return f58
 
-    # Para zonas marítimas/costeras (tiletype=0), F58 es la fuente autoritativa.
-    # country_tiles ya tiene la información correcta (Mar Caribe, Zona Costera, etc.)
-    # Nominatim no tiene información útil para esas coordenadas.
+    # Zonas marítimas/costeras (tiletype=0): F58 es autoritativo, no llamar externos
     if f58.get('display_name', 'Sin información') != 'Sin información':
         tiletype = _get_tiletype(lat, lon)
         if tiletype == 0:
             return f58
 
-    nom = geocode_nominatim(lat, lon)
-    if nom:
-        nom_score = score_address(nom.get('address', {}))
-        nom['score']     = nom_score
-        nom['f58_score'] = f58_score
-        if nom_score > f58_score:
-            return nom
-
-    return f58
+    # Cadena de fuentes externas: Photon → Nominatim (gana mayor score)
+    winner = _best_external(
+        [geocode_photon(lat, lon), geocode_nominatim(lat, lon)],
+        f58_score
+    )
+    return winner if winner else f58
 
 
 def sample_points(n: int) -> list:
@@ -302,13 +352,16 @@ def search_places(q: str, limit: int = 10) -> list:
     if results:
         return results[:limit]
 
-    # F58 sin resultados → intentar GeoNames (geografía natural)
-    geo_results = _search_geonames(q, limit)
+    # F58 sin resultados → GeoNames → Photon → Nominatim
+    geo_results = _search_geonames(q_norm, limit)
     if geo_results:
         return geo_results
 
-    # Nada en GeoNames → fallback final a Nominatim
-    return _search_nominatim(q, limit)
+    photon_results = _search_photon(q_norm, limit)
+    if photon_results:
+        return photon_results
+
+    return _search_nominatim(q_norm, limit)
 
 
 def _search_geonames(q: str, limit: int) -> list:
@@ -340,6 +393,46 @@ def _search_geonames(q: str, limit: int) -> list:
             'type':         tipo,
             'class':        'place',
             'source':       'geonames',
+        })
+    return results
+
+
+def _search_photon(q: str, limit: int) -> list:
+    """Búsqueda por texto via Photon. Sin rate limit, bbox Venezuela."""
+    url = (f'{PHOTON_URL}/api/'
+           f'?q={urllib.parse.quote(q)}&limit={limit}'
+           f'&bbox=-73.35,0.65,-59.80,12.20')
+    try:
+        with httpx.Client(timeout=NOMINATIM_TIMEOUT,
+                          headers={'User-Agent': 'Search58/1.0'}) as client:
+            data = client.get(url).json()
+        features = data.get('features', [])
+    except Exception:
+        return []
+
+    results = []
+    for feat in features:
+        p = feat.get('properties', {})
+        geo = feat.get('geometry', {}).get('coordinates', [])
+        if len(geo) < 2:
+            continue
+        lon, lat = geo[0], geo[1]
+        name = p.get('name') or p.get('street') or ''
+        neighbourhood = p.get('locality') or p.get('district') or p.get('suburb') or ''
+        city = p.get('city') or p.get('town') or p.get('village') or ''
+        parts = [name, neighbourhood, city, p.get('state') or '', p.get('country') or '']
+        display = '. '.join(x for x in parts if x)
+        if not display:
+            continue
+        results.append({
+            'display_name': display,
+            'name':         name or display.split('.')[0].strip(),
+            'lat':          str(lat),
+            'lon':          str(lon),
+            'boundingbox':  [str(lat), str(lat), str(lon), str(lon)],
+            'type':         p.get('type') or p.get('osm_value') or 'place',
+            'class':        p.get('osm_key') or 'place',
+            'source':       'photon',
         })
     return results
 
