@@ -202,6 +202,7 @@
         </div>
         <div class="winner-tag" id="winner-r"></div>
         <div class="results-list" id="results-r"></div>
+        <div class="results-list" id="merged-results" style="display:none;max-height:220px;border-top:1px solid var(--border2);margin-top:4px;"></div>
         <div class="ctl">
           <span class="ctl-lbl">Mapa base</span>
           <div class="segmini">
@@ -585,6 +586,9 @@
     });
     document.getElementById('coords-input').value = '';
     document.getElementById('sub-r').textContent = window.location.origin;
+    searchCollected = { l:null, m:null, r:null };
+    var mx = document.getElementById('merged-results');
+    if (mx){mx.style.display='none';mx.innerHTML='';}
   }
 
   // ── Sincronización de mapas ────────────────────────────────────────────────
@@ -611,12 +615,105 @@
 
   // ── Búsqueda de texto ──────────────────────────────────────────────────────
   var searchMarkers = { l:[], m:[], r:[] };
+  var searchCollected = { l:null, m:null, r:null };
+  var STOPWORDS_SET = new Set(['las','los','la','el','de','del','y','a','en','con','por','un','una','al']);
+
+  function searchSigWords(q) {
+    return q.toLowerCase().split(/\s+/).filter(function(w){
+      return w.length >= 3 && !STOPWORDS_SET.has(w);
+    });
+  }
+
+  function searchScore(items, sigWords) {
+    if (!items || !items.length || !sigWords.length) return 0;
+    // Score del mejor resultado: fracción de palabras del query que aparecen en display_name
+    var top = items[0];
+    var dn = (top.display_name || '').toLowerCase();
+    var matches = sigWords.filter(function(w){ return dn.indexOf(w) !== -1; }).length;
+    return matches / sigWords.length;
+  }
+
+  function evaluateSearchWinner(q) {
+    if (!searchCollected.l || !searchCollected.m || !searchCollected.r) return;
+    var sigWords = searchSigWords(q);
+    var scores = {
+      l: searchScore(searchCollected.l, sigWords),
+      m: searchScore(searchCollected.m, sigWords),
+      r: searchScore(searchCollected.r, sigWords)
+    };
+    var winner = 'r';
+    if (scores.l >= scores.r && scores.l >= scores.m) winner = 'l';
+    else if (scores.m >= scores.r && scores.m >= scores.l) winner = 'm';
+
+    var labels = {
+      l: '✓ Nominatim más relevante',
+      m: '✓ Photon más relevante',
+      r: '✓ Search58 más relevante'
+    };
+    SIDES.forEach(function(side) {
+      var cls = side==='l'?'nom':side==='m'?'pho':'f58b';
+      var badge = document.querySelector('.badge.'+cls);
+      var isW = side === winner;
+      badge.classList.toggle('winner', isW);
+      var wt = document.getElementById('winner-'+side);
+      wt.textContent = labels[side];
+      wt.style.display = isW ? 'block' : 'none';
+    });
+
+    // Panel mezclado — mejores resultados de las 3 fuentes combinados y deduplicados
+    showMergedResults(sigWords);
+  }
+
+  function showMergedResults(sigWords) {
+    var sourceColors = { l:'var(--blue)', m:'var(--orange)', r:'var(--teal)' };
+    var sourceLabels = { l:'Nominatim', m:'Photon', r:'Search58' };
+    var all = [];
+    SIDES.forEach(function(side) {
+      (searchCollected[side] || []).forEach(function(item) {
+        var dn = (item.display_name || '').toLowerCase();
+        var sc = sigWords.filter(function(w){ return dn.indexOf(w) !== -1; }).length;
+        all.push({ item:item, score:sc, source:side });
+      });
+    });
+    // Ordenar por score desc, luego deduplicar por proximidad de coordenadas
+    all.sort(function(a,b){ return b.score - a.score || 0; });
+    var deduped = [], seen = [];
+    all.forEach(function(entry) {
+      var lat = parseFloat(entry.item.lat), lon = parseFloat(entry.item.lon);
+      var dup = seen.some(function(s){
+        return Math.abs(s.lat-lat)<0.001 && Math.abs(s.lon-lon)<0.001;
+      });
+      if (!dup && deduped.length < 8) {
+        deduped.push(entry);
+        seen.push({lat:lat, lon:lon});
+      }
+    });
+
+    // Mostrar en panel derecho como lista combinada debajo de los resultados propios
+    var mixEl = document.getElementById('merged-results');
+    if (!mixEl) return;
+    mixEl.innerHTML = '<div style="font-size:9px;font-weight:800;color:var(--text-dim);'
+      +'text-transform:uppercase;letter-spacing:.5px;padding:6px 7px 3px;">Mejores de las 3 fuentes</div>'
+      + deduped.map(function(entry) {
+          var name = entry.item.name || (entry.item.display_name||'').split(/[,\.]/)[0].trim();
+          return '<div class="result-item" style="cursor:pointer;" onclick="onResultClick('
+            + JSON.stringify(entry.item).replace(/"/g,'&quot;') + ')">'
+            + '<div class="res-name">' + escHtml(name) + '</div>'
+            + '<div class="res-addr" style="font-size:9px;">' + escHtml((entry.item.display_name||'').substring(0,80)) + '</div>'
+            + '<div class="res-type"><span style="color:'+sourceColors[entry.source]+'">'+sourceLabels[entry.source]+'</span></div>'
+            + '</div>';
+        }).join('');
+    mixEl.style.display = 'block';
+  }
 
   function doSearch(e) {
     e.preventDefault();
     var q = document.getElementById('search-input').value.trim();
     if (!q || q.length < 3) return;
     resetWinner(); clearSearchMarkers();
+    searchCollected = { l:null, m:null, r:null };
+    var mergedEl = document.getElementById('merged-results');
+    if (mergedEl) { mergedEl.style.display='none'; mergedEl.innerHTML=''; }
     SIDES.forEach(function(side) {
       var ae = document.getElementById('addr-'+side);
       ae.className='addr hint'; ae.innerHTML='<span class="spinner"></span> Buscando…';
@@ -632,6 +729,7 @@
 
   function searchSide(side, q) {
     var addrEl = document.getElementById('addr-'+side);
+    var _q = q;
     var t0 = Date.now();
     var url;
     if (side==='l') {
@@ -659,14 +757,17 @@
             };
           });
         }
-        renderSearchResults(side, data, ms);
+        renderSearchResults(side, data, ms, _q);
       })
       .catch(function(err){
         addrEl.className='addr error'; addrEl.textContent='⚠ '+(err.message||'Error');
+        searchCollected[side] = [];
+        if (searchCollected.l !== null && searchCollected.m !== null && searchCollected.r !== null)
+          evaluateSearchWinner(_q);
       });
   }
 
-  function renderSearchResults(side, data, ms) {
+  function renderSearchResults(side, data, ms, q) {
     var addrEl = document.getElementById('addr-'+side);
     var resultsEl = document.getElementById('results-'+side);
     var items = Array.isArray(data) ? data : [];
@@ -689,6 +790,11 @@
     resultsEl.querySelectorAll('.result-item').forEach(function(el,idx){
       el.addEventListener('click',function(){onResultClick(items[idx]);});
     });
+
+    // Guardar y evaluar ganador cuando las 3 fuentes hayan respondido
+    searchCollected[side] = items;
+    if (searchCollected.l !== null && searchCollected.m !== null && searchCollected.r !== null)
+      evaluateSearchWinner(q);
   }
 
   function onResultClick(item) {
