@@ -9,7 +9,6 @@ NOMINATIM_TIMEOUT = int(os.environ.get('NOMINATIM_TIMEOUT', '5'))
 HYBRID_THRESHOLD  = int(os.environ.get('HYBRID_THRESHOLD',  '13'))
 
 PHOTON_URL        = os.environ.get('PHOTON_URL',    'https://photon.komoot.io')
-OPENCAGE_KEY      = os.environ.get('OPENCAGE_API_KEY', '')
 
 # Mapeo GeoNames feature_code → tipo en español (para display_name normalizado)
 _GEONAMES_TYPE = {
@@ -196,42 +195,6 @@ def geocode_photon(lat: float, lon: float) -> dict | None:
         return None
 
 
-def geocode_opencage(lat: float, lon: float) -> dict | None:
-    """Geocodificación inversa via OpenCage. Agrega OSM + GeoNames + datos propios."""
-    if not OPENCAGE_KEY:
-        return None
-    url = (f'https://api.opencagedata.com/geocode/v1/json'
-           f'?q={lat}+{lon}&key={OPENCAGE_KEY}&language=es&no_annotations=1&limit=1')
-    try:
-        with httpx.Client(timeout=NOMINATIM_TIMEOUT,
-                          headers={'User-Agent': 'Search58/1.0'}) as client:
-            data = client.get(url).json()
-        results = data.get('results', [])
-        if not results:
-            return None
-        r = results[0]
-        comp = r.get('components', {})
-        display = r.get('formatted', '').replace(', ', '. ')
-        return {
-            'display_name': display,
-            'lat': str(r.get('geometry', {}).get('lat', lat)),
-            'lon': str(r.get('geometry', {}).get('lng', lon)),
-            'source': 'opencage',
-            'address': {
-                'road':          comp.get('road') or comp.get('pedestrian') or '',
-                'neighbourhood': comp.get('neighbourhood') or comp.get('suburb') or '',
-                'city':          comp.get('city') or comp.get('town') or comp.get('village') or '',
-                'county':        comp.get('county') or '',
-                'state':         comp.get('state') or '',
-                'country':       comp.get('country') or '',
-                'country_code':  (comp.get('country_code') or '').lower(),
-                'postcode':      comp.get('postcode') or '',
-            },
-        }
-    except Exception:
-        return None
-
-
 def _best_external(candidates: list, f58_score: int) -> dict | None:
     """Elige el resultado externo con mayor score que supere el de F58."""
     best, best_score = None, f58_score
@@ -260,10 +223,9 @@ def geocode_hybrid(lat: float, lon: float) -> dict:
         if tiletype == 0:
             return f58
 
-    # Cadena de fuentes externas: Photon → OpenCage → Nominatim
-    # Las tres se llaman y gana la de mayor score
+    # Cadena de fuentes externas: Photon → Nominatim (gana mayor score)
     winner = _best_external(
-        [geocode_photon(lat, lon), geocode_opencage(lat, lon), geocode_nominatim(lat, lon)],
+        [geocode_photon(lat, lon), geocode_nominatim(lat, lon)],
         f58_score
     )
     return winner if winner else f58
