@@ -4,7 +4,7 @@
   <meta charset="utf-8"/>
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <meta name="theme-color" content="#e0a458"/>
-  <title>Comparar Geocodificación — OSM vs F58</title>
+  <title>Comparar Geocodificación — Nominatim · Photon · Search58</title>
   <link rel="icon" href="data:,"/>
   <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet"/>
   <script src="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.js"></script>
@@ -22,51 +22,63 @@
       display:flex;flex-direction:column;height:100vh;overflow:hidden;}
 
     #topbar{height:52px;background:var(--surface);border-bottom:1px solid var(--border);
-      display:flex;align-items:center;padding:0 18px;gap:14px;flex-shrink:0;z-index:600;}
-    #brand-name{font-size:15px;font-weight:800;letter-spacing:-0.3px;white-space:nowrap;}
+      display:flex;align-items:center;padding:0 14px;gap:10px;flex-shrink:0;z-index:600;}
+    #brand-name{font-size:14px;font-weight:800;letter-spacing:-0.3px;white-space:nowrap;}
     #brand-name span{color:var(--gold);}
-    #hint{font-size:12px;font-weight:600;color:var(--text-dim);white-space:nowrap;}
-    #hint b{color:var(--green);}
-    #coords-box{margin-left:auto;font-size:11px;font-weight:700;color:var(--text-dim);
+    #hint{font-size:11px;font-weight:600;color:var(--text-dim);white-space:nowrap;}
+    #coords-input{margin-left:auto;font-size:11px;font-weight:700;color:var(--text-dim);
       background:var(--surface2);border:1px solid var(--border2);border-radius:5px;
-      padding:5px 10px;font-variant-numeric:tabular-nums;white-space:nowrap;cursor:pointer;}
-    #coords-box:hover{border-color:var(--gold);color:var(--gold);}
-    #coords-box.copied{border-color:var(--green);color:var(--green);}
+      padding:5px 10px;font-family:'Manrope',system-ui,sans-serif;font-variant-numeric:tabular-nums;
+      width:200px;outline:none;}
+    #coords-input:focus{border-color:var(--gold);color:var(--text);}
+    #coords-input::placeholder{color:var(--text-dim);}
     .clearbtn{background:var(--surface2);border:1px solid var(--border2);color:var(--text-dim);
-      border-radius:5px;padding:6px 12px;font-family:inherit;font-size:12px;font-weight:600;cursor:pointer;white-space:nowrap;}
+      border-radius:5px;padding:5px 10px;font-family:inherit;font-size:11px;font-weight:600;
+      cursor:pointer;white-space:nowrap;}
     .clearbtn:hover{border-color:var(--red);color:var(--red);}
-    a.backbtn{color:var(--text-dim);text-decoration:none;font-size:12px;font-weight:600;
-      border:1px solid var(--border2);border-radius:5px;padding:6px 12px;white-space:nowrap;}
+    a.backbtn{color:var(--text-dim);text-decoration:none;font-size:11px;font-weight:600;
+      border:1px solid var(--border2);border-radius:5px;padding:5px 10px;white-space:nowrap;}
     a.backbtn:hover{border-color:var(--gold);color:var(--gold);}
 
     #split{display:flex;flex:1;overflow:hidden;}
-    .pane{position:relative;flex:1;height:100%;}
+    .pane{position:relative;flex:1;height:100%;min-width:0;}
     .pane+.pane{border-left:2px solid var(--border2);}
     .map{position:absolute;inset:0;}
 
-    .badge{position:absolute;top:12px;left:12px;z-index:500;background:rgba(13,12,10,0.88);
-      border:1px solid var(--border2);border-radius:8px;padding:9px 12px;width:240px;
+    .badge{position:absolute;top:12px;left:8px;z-index:500;background:rgba(13,12,10,0.90);
+      border:1px solid var(--border2);border-radius:8px;padding:8px 10px;width:220px;
       backdrop-filter:blur(3px);}
-    .badge .ds{font-size:11px;font-weight:800;text-transform:uppercase;letter-spacing:0.6px;}
-    .badge.left .ds{color:var(--blue);}
-    .badge.right .ds{color:var(--teal);}
-    .badge .sub{font-size:10px;color:var(--text-dim);margin-top:1px;}
-    .badge .addr{font-size:13px;font-weight:700;color:var(--text);margin-top:8px;line-height:1.4;}
-    .badge .addr.hint{font-size:11px;font-weight:600;color:var(--text-dim);}
+    .badge .ds{font-size:10px;font-weight:800;text-transform:uppercase;letter-spacing:0.6px;}
+    .badge.nom  .ds{color:var(--blue);}
+    .badge.pho  .ds{color:var(--orange);}
+    .badge.f58b .ds{color:var(--teal);}
+    .badge .sub{font-size:9px;color:var(--text-dim);margin-top:1px;}
+    .badge .addr{font-size:12px;font-weight:700;color:var(--text);margin-top:7px;line-height:1.4;}
+    .badge .addr.hint{font-size:10px;font-weight:600;color:var(--text-dim);}
     .badge .addr.error{color:var(--red);}
-    .badge .meta{font-size:10px;color:var(--text-dim);margin-top:4px;}
-    .badge .timing{color:var(--gold);font-weight:700;}
-    .badge .fields{margin-top:6px;border-top:1px solid var(--border2);padding-top:6px;}
-    .badge .field-row{display:flex;gap:6px;font-size:10px;margin-top:3px;}
-    .badge .field-key{color:var(--text-dim);min-width:56px;}
+    .badge .meta{font-size:10px;color:var(--text-dim);margin-top:3px;}
+    .badge .fields{margin-top:5px;border-top:1px solid var(--border2);padding-top:5px;}
+    .badge .field-row{display:flex;gap:5px;font-size:10px;margin-top:2px;}
+    .badge .field-key{color:var(--text-dim);min-width:52px;}
     .badge .field-val{color:var(--text);font-weight:600;word-break:break-word;}
+    .badge.winner{border-color:var(--green);box-shadow:0 0 14px rgba(34,197,94,0.22);}
+    .winner-tag{display:none;margin-top:6px;padding:4px 7px;border-radius:5px;
+      background:rgba(34,197,94,0.12);border:1px solid rgba(34,197,94,0.35);
+      font-size:9px;font-weight:800;color:var(--green);text-transform:uppercase;
+      letter-spacing:0.5px;text-align:center;}
+    .score-line{display:none;margin-top:4px;font-size:9px;color:var(--text-dim);
+      justify-content:space-between;align-items:center;}
+    .score-line .score-val{font-weight:700;color:var(--gold);}
+    .score-line .score-bar{flex:1;height:3px;border-radius:2px;background:var(--border2);
+      margin:0 6px;overflow:hidden;}
+    .score-line .score-fill{height:100%;border-radius:2px;background:var(--gold);transition:width .3s;}
 
-    .ctl{margin-top:9px;border-top:1px solid var(--border2);padding-top:8px;}
+    .ctl{margin-top:8px;border-top:1px solid var(--border2);padding-top:7px;}
     .ctl-lbl{font-size:9px;font-weight:800;text-transform:uppercase;letter-spacing:.5px;
-      color:var(--text-dim);display:block;margin-bottom:4px;}
-    .segmini,.togs{display:flex;gap:5px;margin-bottom:5px;}
+      color:var(--text-dim);display:block;margin-bottom:3px;}
+    .segmini,.togs{display:flex;gap:4px;margin-bottom:4px;}
     .mini{flex:1;background:var(--surface2);border:1px solid var(--border2);border-radius:4px;
-      padding:5px 4px;cursor:pointer;font-family:'Manrope',sans-serif;font-size:10px;font-weight:700;
+      padding:4px 3px;cursor:pointer;font-family:'Manrope',sans-serif;font-size:9px;font-weight:700;
       color:var(--text-dim);transition:background .15s,color .15s,border-color .15s;}
     .mini:hover{border-color:var(--gold);}
     .mini.active{background:var(--gold);color:#0d0c0a;border-color:var(--gold);}
@@ -81,70 +93,56 @@
     .maplibregl-ctrl-attrib a{color:var(--gold)!important;}
     .maplibregl-canvas{background:#92c5fc!important;}
 
-    /* ── Buscador ────────────────────────────────────────────── */
-    #search-form{display:flex;gap:6px;flex:1;max-width:380px;}
+    #search-form{display:flex;gap:5px;flex:1;max-width:300px;}
     #search-input{flex:1;background:var(--surface2);border:1px solid var(--border2);
-      color:var(--text);border-radius:5px;padding:5px 10px;font-family:inherit;
-      font-size:12px;outline:none;min-width:0;}
+      color:var(--text);border-radius:5px;padding:4px 9px;font-family:inherit;
+      font-size:11px;outline:none;min-width:0;}
     #search-input:focus{border-color:var(--gold);}
     #search-input::placeholder{color:var(--text-dim);}
     #search-btn{background:var(--gold);border:none;color:#0d0c0a;border-radius:5px;
-      padding:6px 12px;font-family:inherit;font-size:12px;font-weight:700;cursor:pointer;white-space:nowrap;}
+      padding:5px 10px;font-family:inherit;font-size:11px;font-weight:700;cursor:pointer;white-space:nowrap;}
     #search-btn:hover{opacity:.85;}
-    .results-list{overflow-y:auto;max-height:190px;margin-top:6px;
+    .results-list{overflow-y:auto;max-height:160px;margin-top:5px;
       border-top:1px solid var(--border2);display:none;}
-    .result-item{padding:7px 8px;border-bottom:1px solid var(--border);cursor:pointer;
-      transition:background .12s;}
+    .result-item{padding:6px 7px;border-bottom:1px solid var(--border);cursor:pointer;transition:background .12s;}
     .result-item:last-child{border-bottom:none;}
     .result-item:hover{background:var(--surface2);}
-    .result-item .res-name{font-size:12px;font-weight:700;color:var(--text);}
-    .result-item .res-addr{font-size:10px;color:var(--text-dim);margin-top:2px;line-height:1.3;}
-    .result-item .res-type{font-size:10px;color:var(--gold);margin-top:2px;}
-    .no-results{padding:10px 8px;font-size:11px;color:var(--text-dim);text-align:center;}
-
-    /* ── Ganador híbrido ─────────────────────────────────────── */
-    .badge.winner{border-color:var(--green);box-shadow:0 0 16px rgba(34,197,94,0.22);}
-    .winner-tag{display:none;margin-top:7px;padding:5px 8px;border-radius:5px;
-      background:rgba(34,197,94,0.12);border:1px solid rgba(34,197,94,0.35);
-      font-size:10px;font-weight:800;color:var(--green);text-transform:uppercase;
-      letter-spacing:0.5px;text-align:center;}
-    .score-line{display:none;margin-top:5px;font-size:10px;color:var(--text-dim);
-      display:none;justify-content:space-between;align-items:center;}
-    .score-line .score-val{font-weight:700;color:var(--gold);}
-    .score-line .score-bar{flex:1;height:4px;border-radius:2px;background:var(--border2);
-      margin:0 8px;overflow:hidden;}
-    .score-line .score-fill{height:100%;border-radius:2px;background:var(--gold);transition:width .3s;}
+    .result-item .res-name{font-size:11px;font-weight:700;color:var(--text);}
+    .result-item .res-addr{font-size:9px;color:var(--text-dim);margin-top:2px;line-height:1.3;}
+    .result-item .res-type{font-size:9px;color:var(--gold);margin-top:2px;}
+    .no-results{padding:9px 7px;font-size:10px;color:var(--text-dim);text-align:center;}
   </style>
 </head>
 <body>
   <div id="topbar">
-    <div id="brand-name">Search58 · <span>Geocodificación</span></div>
+    <div id="brand-name">Search58 · <span>Comparador</span></div>
     <form id="search-form" onsubmit="doSearch(event)">
-      <input id="search-input" type="text" placeholder="Buscar lugar… (ej. Altamira, Hospital de Clínicas)" autocomplete="off"/>
+      <input id="search-input" type="text" placeholder="Buscar lugar… (ej. Altamira)" autocomplete="off"/>
       <button id="search-btn" type="submit">Buscar</button>
     </form>
-    <div id="hint">o haz clic en el mapa · izq: <b>OSM</b> · der: <b>F58</b></div>
-    <div id="coords-box" onclick="copyCoords()" title="Copiar lat,lon">— , —</div>
+    <div id="hint">clic en mapa o escribe <b>lon, lat</b> + Enter</div>
+    <input id="coords-input" type="text" placeholder="lon, lat"
+           title="Escribe lon, lat y presiona Enter"
+           onkeydown="if(event.key==='Enter') geocodeFromInput(this.value)"/>
     <button class="clearbtn" onclick="clearAll()">Limpiar</button>
     <a class="backbtn" href="simulation.html">⚡ Simulación</a>
-    <a class="backbtn" href="../">← Inicio</a>
   </div>
 
   <div id="split">
-    <!-- Izquierda: OSM / Nominatim -->
+    <!-- Izquierda: Nominatim -->
     <div class="pane">
       <div id="map-l" class="map"></div>
-      <div class="badge left">
+      <div class="badge nom">
         <div class="ds">OSM · Nominatim</div>
         <div class="sub">nominatim.openstreetmap.org</div>
         <div class="addr hint" id="addr-l">Haz clic en el mapa</div>
-        <div class="meta"><span class="timing" id="time-l"></span></div>
+        <div class="meta" id="time-l"></div>
         <div class="fields" id="fields-l" style="display:none"></div>
         <div class="score-line" id="score-l">
           Completitud: <div class="score-bar"><div class="score-fill" id="fill-l" style="width:0%"></div></div>
           <span class="score-val" id="score-val-l"></span>
         </div>
-        <div class="winner-tag" id="winner-l">✓ Search58 elegiría este</div>
+        <div class="winner-tag" id="winner-l"></div>
         <div class="results-list" id="results-l"></div>
         <div class="ctl">
           <span class="ctl-lbl">Mapa base</span>
@@ -160,20 +158,49 @@
       </div>
     </div>
 
-    <!-- Derecha: F58 / Search58 -->
+    <!-- Centro: Photon -->
+    <div class="pane">
+      <div id="map-m" class="map"></div>
+      <div class="badge pho">
+        <div class="ds">Photon · komoot.io</div>
+        <div class="sub">sin rate limit · base OSM</div>
+        <div class="addr hint" id="addr-m">Haz clic en el mapa</div>
+        <div class="meta" id="time-m"></div>
+        <div class="fields" id="fields-m" style="display:none"></div>
+        <div class="score-line" id="score-m">
+          Completitud: <div class="score-bar"><div class="score-fill" id="fill-m" style="width:0%"></div></div>
+          <span class="score-val" id="score-val-m"></span>
+        </div>
+        <div class="winner-tag" id="winner-m"></div>
+        <div class="results-list" id="results-m"></div>
+        <div class="ctl">
+          <span class="ctl-lbl">Mapa base</span>
+          <div class="segmini">
+            <button id="base-m-geo" class="mini active" onclick="setBase('m','geofabrik')">Geofabrik</button>
+            <button id="base-m-f58" class="mini" onclick="setBase('m','f58')">F58</button>
+          </div>
+          <div class="togs">
+            <button id="terr-m" class="mini" onclick="toggleTerr('m')">Relieve</button>
+            <button id="bldg-m" class="mini" onclick="toggleBldg('m')">Edificios</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Derecha: Search58 / F58 -->
     <div class="pane">
       <div id="map-r" class="map"></div>
-      <div class="badge right">
-        <div class="ds">F58 · Search58</div>
+      <div class="badge f58b">
+        <div class="ds">Search58 · F58</div>
         <div class="sub" id="sub-r"></div>
         <div class="addr hint" id="addr-r">Haz clic en el mapa</div>
-        <div class="meta"><span class="timing" id="time-r"></span></div>
+        <div class="meta" id="time-r"></div>
         <div class="fields" id="fields-r" style="display:none"></div>
         <div class="score-line" id="score-r">
           Completitud: <div class="score-bar"><div class="score-fill" id="fill-r" style="width:0%"></div></div>
           <span class="score-val" id="score-val-r"></span>
         </div>
-        <div class="winner-tag" id="winner-r">✓ Search58 elegiría este</div>
+        <div class="winner-tag" id="winner-r"></div>
         <div class="results-list" id="results-r"></div>
         <div class="ctl">
           <span class="ctl-lbl">Mapa base</span>
@@ -191,99 +218,104 @@
   </div>
 
 <script>
-  var OSM_URL = 'https://nominatim.openstreetmap.org/reverse';
-  var F58_URL = window.location.origin + '/reverse';
+  var OSM_URL    = 'https://nominatim.openstreetmap.org/reverse';
+  var PHOTON_URL = window.location.origin + '/photon/reverse';
+  var F58_URL    = window.location.origin + '/reverse';
+  var OSM_SEARCH    = 'https://nominatim.openstreetmap.org/search';
+  var PHOTON_SEARCH = window.location.origin + '/photon/api/';
+  var F58_SEARCH    = window.location.origin + '/search';
   var LIBERTY = 'https://tiles.openfreemap.org/styles/liberty';
   var CENTER  = [-66.9036, 10.4880], ZOOM = 12;
 
+  var SIDES = ['l', 'm', 'r'];
   var st = {
     l: { map:null, base:'geofabrik', terr:false, bldg:false, loaded:false },
+    m: { map:null, base:'geofabrik', terr:false, bldg:false, loaded:false },
     r: { map:null, base:'geofabrik', terr:false, bldg:false, loaded:false }
   };
   var currentPoint = null;
-  var markers      = { l:null, r:null };
-  var syncing      = false;
+  var markers = { l:null, m:null, r:null };
+  var syncing = false;
+  var collected = { l:null, m:null, r:null, lErr:false, mErr:false, rErr:false };
 
-  // ── Lógica híbrida ────────────────────────────────────────────────────────
-  var collected = { l:null, r:null, lErr:false, rErr:false };
-
+  // ── Score ──────────────────────────────────────────────────────────────────
   function scoreAddress(addr) {
     if (!addr) return -1;
     var s = 0;
-    if (addr.road)                            s += 10;
-    if (addr.neighbourhood || addr.suburb)    s += 5;
+    if (addr.road)                             s += 10;
+    if (addr.neighbourhood || addr.suburb)     s += 5;
     var city = addr.city || '';
     if (city && city.toLowerCase().indexOf('parroquia') === -1) s += 3;
-    if (addr.county)                          s += 2;
-    if (addr.state)                           s += 2;
-    if (addr.country)                         s += 1;
-    if (addr.postcode)                        s += 2;
-    return s; // máx 25
+    if (addr.county)  s += 2;
+    if (addr.state)   s += 2;
+    if (addr.country) s += 1;
+    if (addr.postcode) s += 2;
+    return s;
   }
 
+  // ── Ganador ────────────────────────────────────────────────────────────────
   function evaluateWinner() {
-    if (collected.lErr && collected.rErr) return;
+    var allDone = SIDES.every(function(s) {
+      return collected[s] !== null || collected[s + 'Err'];
+    });
+    if (!allDone) return;
 
-    // Score del panel izquierdo (Nominatim directo — re-calculamos en JS)
-    var sL = collected.lErr ? -1 : scoreAddress(collected.l && collected.l.address);
+    var scores = {
+      l: collected.lErr ? -1 : scoreAddress(collected.l && collected.l.address),
+      m: collected.mErr ? -1 : scoreAddress(collected.m && collected.m.address),
+      r: collected.rErr ? -1
+       : (collected.r && collected.r.score != null
+          ? collected.r.score
+          : scoreAddress(collected.r && collected.r.address))
+    };
 
-    // Score del panel derecho viene directo de la API (ya lo calculó el híbrido)
-    var rData = collected.r;
-    var sR = collected.rErr ? -1
-           : (rData && rData.score != null ? rData.score : scoreAddress(rData && rData.address));
+    // Mostrar barras
+    var maxPts = 25;
+    SIDES.forEach(function(side) {
+      var sc = scores[side];
+      if (sc < 0) return;
+      document.getElementById('score-val-' + side).textContent = sc + ' pts';
+      document.getElementById('fill-' + side).style.width = Math.round(sc / maxPts * 100) + '%';
+      document.getElementById('score-' + side).style.display = 'flex';
+    });
 
-    // Mostrar barras de score
-    if (!collected.lErr && sL >= 0) {
-      document.getElementById('score-val-l').textContent = sL + '/23 pts';
-      document.getElementById('fill-l').style.width = Math.round(sL / 23 * 100) + '%';
-      document.getElementById('score-l').style.display = 'flex';
-    }
-    if (!collected.rErr && sR >= 0) {
-      document.getElementById('score-val-r').textContent = sR + '/23 pts';
-      document.getElementById('fill-r').style.width = Math.round(sR / 23 * 100) + '%';
-      document.getElementById('score-r').style.display = 'flex';
-    }
+    // Ganador: Search58 eligió qué fuente → ese panel gana
+    var src = collected.r && collected.r.source;
+    var winner;
+    if      (collected.rErr)          winner = scores.l >= scores.m ? 'l' : 'm';
+    else if (src === 'f58')            winner = 'r';
+    else if (src === 'photon')         winner = 'm';
+    else                               winner = 'l'; // nominatim
 
-    // Ganador según source devuelto por Search58:
-    //   f58      → panel derecho (datos propios F58)
-    //   photon   → panel derecho (Photon superó a Nominatim en score)
-    //   nominatim→ panel izquierdo (misma fuente que el panel OSM)
-    var src = rData && rData.source;
-    var winner = (src === 'nominatim') ? 'l' : 'r';
-    if (collected.rErr) winner = 'l';
-    if (collected.lErr) winner = 'r';
-
-    var winnerTagL = document.getElementById('winner-l');
-    var winnerTagR = document.getElementById('winner-r');
-    winnerTagL.textContent = '✓ Search58 eligió Nominatim';
-    if (src === 'photon') winnerTagR.textContent = '✓ Search58 eligió Photon';
-    else winnerTagR.textContent = '✓ Search58 eligió F58';
-
-    ['l','r'].forEach(function(side) {
-      var cls = side === 'l' ? 'left' : 'right';
+    var labels = { l: '✓ Search58 eligió Nominatim',
+                   m: '✓ Search58 eligió Photon',
+                   r: '✓ Search58 eligió F58' };
+    SIDES.forEach(function(side) {
+      var cls = side === 'l' ? 'nom' : side === 'm' ? 'pho' : 'f58b';
       var badge = document.querySelector('.badge.' + cls);
-      var isWinner = side === winner;
-      badge.classList.toggle('winner', isWinner);
-      document.getElementById('winner-' + side).style.display = isWinner ? 'block' : 'none';
+      var isW = side === winner;
+      badge.classList.toggle('winner', isW);
+      var wt = document.getElementById('winner-' + side);
+      wt.textContent = labels[side];
+      wt.style.display = isW ? 'block' : 'none';
     });
   }
 
   function resetWinner() {
-    ['l','r'].forEach(function(side) {
-      document.querySelector('.badge.' + (side==='l'?'left':'right')).classList.remove('winner');
+    SIDES.forEach(function(side) {
+      var cls = side === 'l' ? 'nom' : side === 'm' ? 'pho' : 'f58b';
+      document.querySelector('.badge.' + cls).classList.remove('winner');
       document.getElementById('winner-' + side).style.display = 'none';
       document.getElementById('score-'  + side).style.display = 'none';
-      document.getElementById('fill-'   + side).style.width   = '0%';
+      document.getElementById('fill-'   + side).style.width = '0%';
     });
-    collected = { l:null, r:null, lErr:false, rErr:false };
+    collected = { l:null, m:null, r:null, lErr:false, mErr:false, rErr:false };
   }
 
   // ── Mapas ──────────────────────────────────────────────────────────────────
   function makeMap(id, side) {
-    var m = new maplibregl.Map({
-      container: id, style: LIBERTY,
-      center: CENTER, zoom: ZOOM, pitch: 30, maxZoom: 19
-    });
+    var m = new maplibregl.Map({ container:id, style:LIBERTY,
+      center:CENTER, zoom:ZOOM, pitch:30, maxZoom:19 });
     m.addControl(new maplibregl.NavigationControl(), 'top-right');
     st[side].map = m;
     m.on('load', function() {
@@ -297,174 +329,215 @@
     var m = st[side].map, s = st[side];
     if (!m.getSource('aws-terrain')) {
       m.addSource('aws-terrain', {
-        type: 'raster-dem',
-        tiles: ['https://s3.amazonaws.com/elevation-tiles-prod/terrarium/{z}/{x}/{y}.png'],
-        encoding: 'terrarium', tileSize: 256, maxzoom: 15
+        type:'raster-dem',
+        tiles:['https://s3.amazonaws.com/elevation-tiles-prod/terrarium/{z}/{x}/{y}.png'],
+        encoding:'terrarium', tileSize:256, maxzoom:15
       });
     }
     if (s.terr) m.setTerrain({ source:'aws-terrain', exaggeration:1.0 });
-    else         m.setTerrain(null);
-
+    else m.setTerrain(null);
     if (!m.getLayer('hillshade')) {
       var before, layers = (m.getStyle() && m.getStyle().layers) || [];
-      for (var i = 0; i < layers.length; i++) {
-        if (layers[i].type === 'line' || layers[i].type === 'symbol') { before = layers[i].id; break; }
+      for (var i=0;i<layers.length;i++) {
+        if (layers[i].type==='line'||layers[i].type==='symbol'){before=layers[i].id;break;}
       }
-      m.addLayer({ id:'hillshade', type:'hillshade', source:'aws-terrain',
-        paint: { 'hillshade-exaggeration':0.2, 'hillshade-shadow-color':'#3a3028',
-                 'hillshade-highlight-color':'#d8d0c5', 'hillshade-illumination-anchor':'map' }
+      m.addLayer({id:'hillshade',type:'hillshade',source:'aws-terrain',
+        paint:{'hillshade-exaggeration':0.2,'hillshade-shadow-color':'#3a3028',
+               'hillshade-highlight-color':'#d8d0c5','hillshade-illumination-anchor':'map'}
       }, before);
-      if (!s.terr) m.setLayoutProperty('hillshade', 'visibility', 'none');
+      if (!s.terr) m.setLayoutProperty('hillshade','visibility','none');
     }
-    try { if (s.base === 'f58' && window.F58Style) window.F58Style.addIcons(m); } catch(e) {}
+    try { if (s.base==='f58'&&window.F58Style) window.F58Style.addIcons(m); } catch(e){}
     applyBldg(side);
     if (currentPoint) placeMarker(side, currentPoint);
   }
 
-  // ── Mapa base / toggles ────────────────────────────────────────────────────
   function setBase(side, name) {
-    if (st[side].base === name) return;
-    if (name === 'f58' && !window.F58Style) { alert('No se pudo cargar f58-style.js'); return; }
-    st[side].base = name;
-    updateSideUI(side);
-    st[side].map.once('style.load', function() { setupOverlays(side); });
-    st[side].map.setStyle(name === 'f58' ? window.F58Style.build() : LIBERTY);
+    if (st[side].base===name) return;
+    if (name==='f58'&&!window.F58Style){alert('No se pudo cargar f58-style.js');return;}
+    st[side].base = name; updateSideUI(side);
+    st[side].map.once('style.load', function(){setupOverlays(side);});
+    st[side].map.setStyle(name==='f58' ? window.F58Style.build() : LIBERTY);
   }
   function toggleTerr(side) {
-    var s = st[side], m = s.map; s.terr = !s.terr;
-    if (s.terr) {
-      m.setTerrain({ source:'aws-terrain', exaggeration:1.0 });
-      if (m.getLayer('hillshade')) m.setLayoutProperty('hillshade', 'visibility', 'visible');
-    } else {
-      m.setTerrain(null);
-      if (m.getLayer('hillshade')) m.setLayoutProperty('hillshade', 'visibility', 'none');
-    }
+    var s=st[side],m=s.map; s.terr=!s.terr;
+    if(s.terr){m.setTerrain({source:'aws-terrain',exaggeration:1.0});
+      if(m.getLayer('hillshade'))m.setLayoutProperty('hillshade','visibility','visible');}
+    else{m.setTerrain(null);if(m.getLayer('hillshade'))m.setLayoutProperty('hillshade','visibility','none');}
     updateSideUI(side);
   }
-  function buildingLayers(m) {
-    var ids = [], ly = (m.getStyle() && m.getStyle().layers) || [];
-    for (var i = 0; i < ly.length; i++) if (ly[i].type === 'fill-extrusion') ids.push(ly[i].id);
+  function buildingLayers(m){
+    var ids=[],ly=(m.getStyle()&&m.getStyle().layers)||[];
+    for(var i=0;i<ly.length;i++) if(ly[i].type==='fill-extrusion') ids.push(ly[i].id);
     return ids;
   }
-  function applyBldg(side) {
-    var vis = st[side].bldg ? 'visible' : 'none';
-    buildingLayers(st[side].map).forEach(function(id) {
-      try { st[side].map.setLayoutProperty(id, 'visibility', vis); } catch(e) {}
+  function applyBldg(side){
+    var vis=st[side].bldg?'visible':'none';
+    buildingLayers(st[side].map).forEach(function(id){
+      try{st[side].map.setLayoutProperty(id,'visibility',vis);}catch(e){}
     });
   }
-  function toggleBldg(side) { st[side].bldg = !st[side].bldg; applyBldg(side); updateSideUI(side); }
-  function updateSideUI(side) {
-    var s = st[side];
-    tog('base-'+side+'-geo', 'active', s.base === 'geofabrik');
-    tog('base-'+side+'-f58', 'active', s.base === 'f58');
-    tog('terr-'+side, 'on', s.terr);
-    tog('bldg-'+side, 'on', s.bldg);
+  function toggleBldg(side){st[side].bldg=!st[side].bldg;applyBldg(side);updateSideUI(side);}
+  function updateSideUI(side){
+    var s=st[side];
+    tog('base-'+side+'-geo','active',s.base==='geofabrik');
+    tog('base-'+side+'-f58','active',s.base==='f58');
+    tog('terr-'+side,'on',s.terr); tog('bldg-'+side,'on',s.bldg);
   }
-  function tog(id, cls, on) { var el = document.getElementById(id); if (el) el.classList.toggle(cls, on); }
+  function tog(id,cls,on){var el=document.getElementById(id);if(el)el.classList.toggle(cls,on);}
 
   // ── Marcadores ─────────────────────────────────────────────────────────────
   function markerEl(color) {
-    var el = document.createElement('div');
-    el.style.cssText = 'background:' + color + ';width:22px;height:22px;border-radius:50%;'
-      + 'border:3px solid #0d0c0a;box-shadow:0 2px 10px rgba(0,0,0,.7);cursor:crosshair;';
+    var el=document.createElement('div');
+    el.style.cssText='background:'+color+';width:20px;height:20px;border-radius:50%;'
+      +'border:3px solid #0d0c0a;box-shadow:0 2px 8px rgba(0,0,0,.7);cursor:crosshair;';
     return el;
   }
   function placeMarker(side, ll) {
-    if (markers[side]) { markers[side].remove(); markers[side] = null; }
-    var color = side === 'l' ? '#3b82f6' : '#2dd4bf';
-    markers[side] = new maplibregl.Marker({ element: markerEl(color) })
-      .setLngLat([ll.lng, ll.lat]).addTo(st[side].map);
+    if (markers[side]){markers[side].remove();markers[side]=null;}
+    var colors={l:'#3b82f6',m:'#f97316',r:'#2dd4bf'};
+    markers[side]=new maplibregl.Marker({element:markerEl(colors[side])})
+      .setLngLat([ll.lng,ll.lat]).addTo(st[side].map);
   }
 
-  // ── Clic en mapa ───────────────────────────────────────────────────────────
+  // ── Clic en mapa / input de coordenadas ────────────────────────────────────
   function onClick(e) {
-    var ll = { lat: e.lngLat.lat, lng: e.lngLat.lng };
+    goToPoint({ lat:e.lngLat.lat, lng:e.lngLat.lng });
+  }
+
+  function geocodeFromInput(val) {
+    var parts = val.split(',');
+    if (parts.length < 2) return;
+    var lon = parseFloat(parts[0].trim());
+    var lat = parseFloat(parts[1].trim());
+    if (isNaN(lat) || isNaN(lon)) return;
+    goToPoint({ lat:lat, lng:lon });
+  }
+
+  function goToPoint(ll) {
     currentPoint = ll;
-    var box = document.getElementById('coords-box');
-    box.textContent = ll.lat.toFixed(6) + ' , ' + ll.lng.toFixed(6);
-    box.classList.remove('copied');
-    ['l', 'r'].forEach(function(side) { placeMarker(side, ll); });
-    geocodeBoth(ll);
+    document.getElementById('coords-input').value = ll.lng.toFixed(6) + ', ' + ll.lat.toFixed(6);
+    SIDES.forEach(function(side) {
+      placeMarker(side, ll);
+      st[side].map.flyTo({ center:[ll.lng, ll.lat], zoom:Math.max(st[side].map.getZoom(), 12) });
+    });
+    geocodeAll(ll);
   }
 
   // ── Geocodificación ────────────────────────────────────────────────────────
-  function geocodeBoth(ll) {
+  function geocodeAll(ll) {
     resetWinner();
     geocodeSide('l', ll);
+    geocodeSide('m', ll);
     geocodeSide('r', ll);
+  }
+
+  function parsePhotonFeature(data) {
+    var features = data.features || [];
+    if (!features.length) return null;
+    var p = features[0].properties || {};
+    var coords = (features[0].geometry || {}).coordinates || [];
+    var road = p.street || p.name || '';
+    var nbh  = p.locality || p.district || p.suburb || '';
+    var city = p.city || p.town || p.village || '';
+    var parts = [road, nbh, city, p.county||'', p.state||'', p.country||''];
+    return {
+      display_name: parts.filter(Boolean).join('. '),
+      lat: coords[1] ? String(coords[1]) : '',
+      lon: coords[0] ? String(coords[0]) : '',
+      source: 'photon',
+      address: {
+        road:road, neighbourhood:nbh, city:city,
+        county:p.county||'', state:p.state||'',
+        country:p.country||'', country_code:(p.countrycode||'').toLowerCase(),
+        postcode:p.postcode||''
+      }
+    };
   }
 
   function geocodeSide(side, ll) {
     var addrEl   = document.getElementById('addr-' + side);
     var timeEl   = document.getElementById('time-' + side);
     var fieldsEl = document.getElementById('fields-' + side);
-
     addrEl.className = 'addr hint';
     addrEl.innerHTML = '<span class="spinner"></span> Geocodificando…';
-    timeEl.textContent = '';
-    fieldsEl.style.display = 'none';
-    fieldsEl.innerHTML = '';
-
-    var baseUrl = side === 'l' ? OSM_URL : F58_URL;
-    var url = baseUrl + '?format=json&lat=' + ll.lat.toFixed(7) + '&lon=' + ll.lng.toFixed(7);
-    var headers = side === 'l'
-      ? { 'Accept-Language': 'es', 'User-Agent': 'Search58-Compare/1.0 (geocoding validation)' }
-      : {};
+    timeEl.textContent = ''; timeEl.innerHTML = '';
+    fieldsEl.style.display = 'none'; fieldsEl.innerHTML = '';
 
     var t0 = Date.now();
-    fetch(url, { headers: headers })
-      .then(function(r) { return r.json(); })
-      .then(function(data) {
-        renderResult(side, data, Date.now() - t0);
-        collected[side] = data;
-        if (collected.l !== null || collected.lErr) {
-          if (collected.r !== null || collected.rErr) evaluateWinner();
-        }
-      })
-      .catch(function(err) {
-        addrEl.className = 'addr error';
-        addrEl.textContent = '⚠ ' + (err.message || 'Error de conexión');
-        if (side === 'r') {
-          document.getElementById('sub-r').innerHTML =
-            '<span style="color:var(--red)">⚠ sin respuesta — ' + window.location.origin + '</span>';
-        }
-        collected[side + 'Err'] = true;
-        collected[side] = null;
-        if ((collected.l !== null || collected.lErr) &&
-            (collected.r !== null || collected.rErr)) evaluateWinner();
-      });
+
+    if (side === 'l') {
+      // Nominatim directo
+      var url = OSM_URL + '?format=json&lat=' + ll.lat.toFixed(7) + '&lon=' + ll.lng.toFixed(7) + '&addressdetails=1&accept-language=es';
+      fetch(url, { headers:{'User-Agent':'Search58-Compare/1.0','Accept-Language':'es'} })
+        .then(function(r){return r.json();})
+        .then(function(data){
+          renderResult('l', data, Date.now()-t0);
+          collected.l = data; evaluateWinner();
+        }).catch(function(err){
+          addrEl.className='addr error'; addrEl.textContent='⚠ '+err.message;
+          collected.lErr=true; evaluateWinner();
+        });
+
+    } else if (side === 'm') {
+      // Photon directo (via proxy)
+      var url = PHOTON_URL + '?lon=' + ll.lng.toFixed(7) + '&lat=' + ll.lat.toFixed(7);
+      fetch(url)
+        .then(function(r){return r.json();})
+        .then(function(data){
+          var parsed = parsePhotonFeature(data);
+          if (parsed) {
+            renderResult('m', parsed, Date.now()-t0);
+            collected.m = parsed;
+          } else {
+            addrEl.className='addr hint'; addrEl.textContent='Sin datos de Photon';
+            collected.m = {};
+          }
+          evaluateWinner();
+        }).catch(function(err){
+          addrEl.className='addr error'; addrEl.textContent='⚠ '+err.message;
+          collected.mErr=true; evaluateWinner();
+        });
+
+    } else {
+      // Search58 híbrido
+      var url = F58_URL + '?format=json&lat=' + ll.lat.toFixed(7) + '&lon=' + ll.lng.toFixed(7);
+      fetch(url)
+        .then(function(r){return r.json();})
+        .then(function(data){
+          renderResult('r', data, Date.now()-t0);
+          collected.r = data; evaluateWinner();
+        }).catch(function(err){
+          addrEl.className='addr error';
+          addrEl.textContent='⚠ '+(err.message||'Error de conexión');
+          collected.rErr=true; evaluateWinner();
+        });
+    }
   }
 
   function renderResult(side, data, ms) {
     var addrEl   = document.getElementById('addr-' + side);
     var timeEl   = document.getElementById('time-' + side);
     var fieldsEl = document.getElementById('fields-' + side);
-
     if (!data || data.error) {
-      addrEl.className = 'addr error';
-      addrEl.textContent = '⚠ ' + (data && data.error ? data.error : 'Sin respuesta');
+      addrEl.className='addr error';
+      addrEl.textContent='⚠ '+(data&&data.error?data.error:'Sin respuesta');
       return;
     }
-
     addrEl.className = 'addr';
     addrEl.textContent = data.display_name || 'Sin información';
 
-    // Panel derecho: mostrar fuente elegida por el híbrido y scores
     if (side === 'r') {
-      var src     = data.source || 'f58';
-      var score   = data.score != null ? data.score : '—';
-      var f58sc   = data.f58_score != null ? data.f58_score : null;
-      var srcColor = src === 'nominatim' ? 'var(--blue)'
-                  : src === 'photon'    ? 'var(--orange)'
-                  : 'var(--teal)';
-      var srcLabel = src === 'nominatim' ? 'Nominatim (fallback)'
-                  : src === 'photon'    ? 'Photon (fallback)'
-                  : 'F58';
-      var scoreInfo = 'score ' + score + '/23';
-      if (f58sc != null) scoreInfo += ' · F58 fue ' + f58sc + '/23';
-      timeEl.innerHTML = ms + ' ms &nbsp;·&nbsp; '
-        + '<span style="color:' + srcColor + ';font-weight:800">' + srcLabel + '</span>'
-        + ' <span style="color:var(--text-dim);font-size:9px">(' + scoreInfo + ')</span>';
+      var src = data.source || 'f58';
+      var score = data.score != null ? data.score : '—';
+      var f58sc = data.f58_score != null ? data.f58_score : null;
+      var srcColor = src==='nominatim' ? 'var(--blue)' : src==='photon' ? 'var(--orange)' : 'var(--teal)';
+      var srcLabel = src==='nominatim' ? 'Nominatim' : src==='photon' ? 'Photon' : 'F58';
+      var scoreInfo = 'score '+score+'/25';
+      if (f58sc != null) scoreInfo += ' · F58='+f58sc;
+      timeEl.innerHTML = ms+'ms &nbsp;·&nbsp; '
+        +'<span style="color:'+srcColor+';font-weight:800">'+srcLabel+'</span>'
+        +' <span style="color:var(--text-dim);font-size:9px">('+scoreInfo+')</span>';
     } else {
       timeEl.textContent = ms + ' ms';
     }
@@ -473,72 +546,56 @@
       var a = data.address;
       var rows;
       if (side === 'l') {
-        rows = [
-          ['vía',      a.road || a.pedestrian || a.footway || a.path || '—'],
-          ['sector',   a.suburb || a.neighbourhood || a.quarter || '—'],
-          ['ciudad',   a.city || a.town || a.village || a.municipality || '—'],
-          ['municipio',a.county || '—'],
-          ['estado',   a.state || '—'],
-          ['país',     a.country || '—']
-        ];
+        rows=[['vía',a.road||a.pedestrian||a.footway||'—'],
+              ['sector',a.suburb||a.neighbourhood||a.quarter||'—'],
+              ['ciudad',a.city||a.town||a.village||'—'],
+              ['municipio',a.county||'—'],['estado',a.state||'—'],['país',a.country||'—']];
       } else {
-        rows = [
-          ['vía',      a.road          || '—'],
-          ['sector',   a.neighbourhood || a.suburb || '—'],
-          ['ciudad',   a.city          || '—'],
-          ['municipio',a.county        || '—'],
-          ['estado',   a.state         || '—'],
-          ['país',     a.country       || '—']
-        ];
+        rows=[['vía',a.road||'—'],['sector',a.neighbourhood||a.suburb||'—'],
+              ['ciudad',a.city||'—'],['municipio',a.county||'—'],
+              ['estado',a.state||'—'],['país',a.country||'—']];
+        if (a.postcode) rows.push(['código postal', a.postcode]);
       }
-      fieldsEl.innerHTML = rows.map(function(r) {
-        return '<div class="field-row"><span class="field-key">' + r[0]
-          + '</span><span class="field-val">' + escHtml(r[1]) + '</span></div>';
+      fieldsEl.innerHTML = rows.map(function(r){
+        return '<div class="field-row"><span class="field-key">'+r[0]+'</span>'
+              +'<span class="field-val">'+escHtml(r[1])+'</span></div>';
       }).join('');
       fieldsEl.style.display = 'block';
     }
   }
 
-  function escHtml(s) {
+  function escHtml(s){
     return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
   }
 
-  // ── Utilidades ─────────────────────────────────────────────────────────────
-  function copyCoords() {
-    if (!currentPoint) return;
-    var txt = currentPoint.lat.toFixed(6) + ',' + currentPoint.lng.toFixed(6);
-    navigator.clipboard.writeText(txt).then(function() {
-      var el = document.getElementById('coords-box');
-      el.classList.add('copied');
-      el.textContent = '✓ copiado';
-      setTimeout(function() {
-        el.classList.remove('copied');
-        el.textContent = currentPoint.lat.toFixed(6) + ' , ' + currentPoint.lng.toFixed(6);
-      }, 1200);
-    });
-  }
-
+  // ── Limpiar ────────────────────────────────────────────────────────────────
   function clearAll() {
     currentPoint = null;
     resetWinner();
-    ['l', 'r'].forEach(function(side) {
-      if (markers[side]) { markers[side].remove(); markers[side] = null; }
-      document.getElementById('addr-' + side).className = 'addr hint';
-      document.getElementById('addr-' + side).textContent = 'Haz clic en el mapa';
-      document.getElementById('time-' + side).textContent = '';
-      document.getElementById('fields-' + side).style.display = 'none';
-      document.getElementById('fields-' + side).innerHTML = '';
+    clearSearchMarkers();
+    SIDES.forEach(function(side) {
+      if (markers[side]){markers[side].remove();markers[side]=null;}
+      document.getElementById('addr-'+side).className='addr hint';
+      document.getElementById('addr-'+side).textContent='Haz clic en el mapa';
+      document.getElementById('time-'+side).textContent='';
+      document.getElementById('fields-'+side).style.display='none';
+      document.getElementById('fields-'+side).innerHTML='';
+      var rl = document.getElementById('results-'+side);
+      if (rl){rl.style.display='none';rl.innerHTML='';}
     });
-    document.getElementById('coords-box').textContent = '— , —';
+    document.getElementById('coords-input').value = '';
     document.getElementById('sub-r').textContent = window.location.origin;
   }
 
-  // ── Sincronización de vista ────────────────────────────────────────────────
-  function linkMove(src, dst) {
+  // ── Sincronización de mapas ────────────────────────────────────────────────
+  function linkMove(src, dsts) {
     st[src].map.on('move', function() {
       if (syncing) return; syncing = true;
-      var a = st[src].map, b = st[dst].map;
-      b.jumpTo({ center:a.getCenter(), zoom:a.getZoom(), bearing:a.getBearing(), pitch:a.getPitch() });
+      var a = st[src].map;
+      dsts.forEach(function(dst){
+        st[dst].map.jumpTo({center:a.getCenter(),zoom:a.getZoom(),
+          bearing:a.getBearing(),pitch:a.getPitch()});
+      });
       syncing = false;
     });
   }
@@ -546,124 +603,119 @@
   document.getElementById('sub-r').textContent = window.location.origin;
 
   makeMap('map-l', 'l');
+  makeMap('map-m', 'm');
   makeMap('map-r', 'r');
-  linkMove('l', 'r');
-  linkMove('r', 'l');
+  linkMove('l', ['m','r']);
+  linkMove('m', ['l','r']);
+  linkMove('r', ['l','m']);
 
-  // ── Búsqueda de texto ─────────────────────────────────────────────────────
-  var OSM_SEARCH = 'https://nominatim.openstreetmap.org/search';
-  var F58_SEARCH = window.location.origin + '/search';
-  var searchMarkers = { l:[], r:[] };
+  // ── Búsqueda de texto ──────────────────────────────────────────────────────
+  var searchMarkers = { l:[], m:[], r:[] };
 
   function doSearch(e) {
     e.preventDefault();
     var q = document.getElementById('search-input').value.trim();
     if (!q || q.length < 3) return;
-    resetWinner();
-    clearSearchMarkers();
-    ['l','r'].forEach(function(side) {
-      var addrEl = document.getElementById('addr-' + side);
-      addrEl.className = 'addr hint';
-      addrEl.innerHTML = '<span class="spinner"></span> Buscando…';
-      document.getElementById('time-' + side).textContent = '';
-      document.getElementById('fields-' + side).style.display = 'none';
-      document.getElementById('results-' + side).style.display = 'none';
-      document.getElementById('results-' + side).innerHTML = '';
+    resetWinner(); clearSearchMarkers();
+    SIDES.forEach(function(side) {
+      var ae = document.getElementById('addr-'+side);
+      ae.className='addr hint'; ae.innerHTML='<span class="spinner"></span> Buscando…';
+      document.getElementById('time-'+side).textContent='';
+      document.getElementById('fields-'+side).style.display='none';
+      var rl=document.getElementById('results-'+side);
+      if(rl){rl.style.display='none';rl.innerHTML='';}
     });
     searchSide('l', q);
+    searchSide('m', q);
     searchSide('r', q);
   }
 
   function searchSide(side, q) {
-    var addrEl = document.getElementById('addr-' + side);
+    var addrEl = document.getElementById('addr-'+side);
     var t0 = Date.now();
-    var url = side === 'l'
-      ? OSM_SEARCH + '?format=json&q=' + encodeURIComponent(q) + '&limit=10&countrycodes=ve&addressdetails=1&accept-language=es'
-      : F58_SEARCH + '?q=' + encodeURIComponent(q) + '&limit=10';
-
+    var url;
+    if (side==='l') {
+      url = OSM_SEARCH+'?format=json&q='+encodeURIComponent(q)+'&limit=5&countrycodes=ve&addressdetails=1&accept-language=es';
+    } else if (side==='m') {
+      url = PHOTON_SEARCH+'?q='+encodeURIComponent(q)+'&limit=5&bbox=-73.35,0.65,-59.80,12.20';
+    } else {
+      url = F58_SEARCH+'?q='+encodeURIComponent(q)+'&limit=5';
+    }
     fetch(url)
-      .then(function(r) { return r.json(); })
-      .then(function(data) {
-        var ms = Date.now() - t0;
+      .then(function(r){return r.json();})
+      .then(function(data){
+        var ms=Date.now()-t0;
+        // Photon devuelve GeoJSON; normalizar
+        if (side==='m' && data.features) {
+          data = data.features.map(function(f){
+            var p=f.properties||{}, c=(f.geometry||{}).coordinates||[];
+            var name = p.name||p.street||'';
+            var city = p.city||p.town||p.village||'';
+            return {
+              display_name: [name,p.locality||p.suburb||'',city,p.state||'',p.country||''].filter(Boolean).join('. '),
+              name:name||city, lat:String(c[1]||0), lon:String(c[0]||0),
+              boundingbox:p.extent?[p.extent[1],p.extent[3],p.extent[0],p.extent[2]]:[],
+              type:p.osm_value||p.type||'place'
+            };
+          });
+        }
         renderSearchResults(side, data, ms);
       })
-      .catch(function(err) {
-        addrEl.className = 'addr error';
-        addrEl.textContent = '⚠ ' + (err.message || 'Error de conexión');
+      .catch(function(err){
+        addrEl.className='addr error'; addrEl.textContent='⚠ '+(err.message||'Error');
       });
   }
 
   function renderSearchResults(side, data, ms) {
-    var addrEl   = document.getElementById('addr-' + side);
-    var timeEl   = document.getElementById('time-' + side);
-    var resultsEl = document.getElementById('results-' + side);
+    var addrEl = document.getElementById('addr-'+side);
+    var resultsEl = document.getElementById('results-'+side);
     var items = Array.isArray(data) ? data : [];
-
-    addrEl.className = 'addr hint';
-    addrEl.textContent = items.length + ' resultado' + (items.length !== 1 ? 's' : '') + ' · ' + ms + ' ms';
-    timeEl.textContent = '';
-
+    addrEl.className='addr hint';
+    addrEl.textContent=items.length+' resultado'+(items.length!==1?'s':'')+' · '+ms+' ms';
     if (!items.length) {
-      resultsEl.innerHTML = '<div class="no-results">Sin resultados</div>';
-      resultsEl.style.display = 'block';
-      return;
+      resultsEl.innerHTML='<div class="no-results">Sin resultados</div>';
+      resultsEl.style.display='block'; return;
     }
-
-    resultsEl.innerHTML = items.map(function(item, i) {
-      var name = item.name || item.display_name.split(',')[0];
-      var addr = item.display_name || '';
-      var tipo = item.type || item.class || '';
-      return '<div class="result-item" data-side="' + side + '" data-idx="' + i + '">'
-        + '<div class="res-name">' + escHtml(name) + '</div>'
-        + '<div class="res-addr">' + escHtml(addr) + '</div>'
-        + (tipo ? '<div class="res-type">' + escHtml(tipo) + '</div>' : '')
-        + '</div>';
+    resultsEl.innerHTML = items.map(function(item,i){
+      var name=item.name||(item.display_name||'').split(/[,\.]/)[0].trim();
+      return '<div class="result-item" data-idx="'+i+'">'
+        +'<div class="res-name">'+escHtml(name)+'</div>'
+        +'<div class="res-addr">'+escHtml(item.display_name||'')+'</div>'
+        +(item.type?'<div class="res-type">'+escHtml(item.type)+'</div>':'')
+        +'</div>';
     }).join('');
-
-    resultsEl.style.display = 'block';
-    resultsEl.__data = items;
-
-    resultsEl.querySelectorAll('.result-item').forEach(function(el) {
-      el.addEventListener('click', function() {
-        var idx = parseInt(el.getAttribute('data-idx'));
-        onResultClick(items[idx]);
-      });
+    resultsEl.style.display='block';
+    resultsEl.__data=items;
+    resultsEl.querySelectorAll('.result-item').forEach(function(el,idx){
+      el.addEventListener('click',function(){onResultClick(items[idx]);});
     });
   }
 
   function onResultClick(item) {
-    var lat = parseFloat(item.lat), lon = parseFloat(item.lon);
-    if (isNaN(lat) || isNaN(lon)) return;
-    var ll = { lat: lat, lng: lon };
-    currentPoint = ll;
-    document.getElementById('coords-box').textContent = lat.toFixed(6) + ' , ' + lon.toFixed(6);
-
-    // Mover ambos mapas al resultado
-    var bbox = item.boundingbox;
-    ['l','r'].forEach(function(side) {
+    var lat=parseFloat(item.lat), lon=parseFloat(item.lon);
+    if (isNaN(lat)||isNaN(lon)) return;
+    var ll={lat:lat,lng:lon};
+    currentPoint=ll;
+    document.getElementById('coords-input').value=lon.toFixed(6)+', '+lat.toFixed(6);
+    var bbox=item.boundingbox;
+    SIDES.forEach(function(side){
       clearSearchMarkersOneSide(side);
-      var color = side === 'l' ? '#3b82f6' : '#2dd4bf';
-      var mk = new maplibregl.Marker({ element: markerEl(color) })
-        .setLngLat([lon, lat]).addTo(st[side].map);
+      var colors={l:'#3b82f6',m:'#f97316',r:'#2dd4bf'};
+      var mk=new maplibregl.Marker({element:markerEl(colors[side])})
+        .setLngLat([lon,lat]).addTo(st[side].map);
       searchMarkers[side].push(mk);
-      if (bbox && bbox.length === 4) {
+      if(bbox&&bbox.length===4){
         st[side].map.fitBounds(
-          [[parseFloat(bbox[2]), parseFloat(bbox[0])],
-           [parseFloat(bbox[3]), parseFloat(bbox[1])]],
-          { padding: 60, maxZoom: 16 }
-        );
-      } else {
-        st[side].map.flyTo({ center: [lon, lat], zoom: 15 });
-      }
+          [[parseFloat(bbox[2]),parseFloat(bbox[0])],[parseFloat(bbox[3]),parseFloat(bbox[1])]],
+          {padding:60,maxZoom:16});
+      } else { st[side].map.flyTo({center:[lon,lat],zoom:15}); }
     });
   }
 
-  function clearSearchMarkers() {
-    ['l','r'].forEach(clearSearchMarkersOneSide);
-  }
-  function clearSearchMarkersOneSide(side) {
-    searchMarkers[side].forEach(function(m) { m.remove(); });
-    searchMarkers[side] = [];
+  function clearSearchMarkers(){SIDES.forEach(clearSearchMarkersOneSide);}
+  function clearSearchMarkersOneSide(side){
+    searchMarkers[side].forEach(function(m){m.remove();});
+    searchMarkers[side]=[];
   }
 </script>
 </body>

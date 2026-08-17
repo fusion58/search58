@@ -5,7 +5,7 @@ from fastapi import FastAPI, Query, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import Response
 from fastapi.staticfiles import StaticFiles
-from geocoder import geocode_hybrid, search_places, sample_points
+from geocoder import geocode_hybrid, search_places, sample_points, PHOTON_URL
 from db import run_sql
 
 GEOSERVER_URL = os.environ.get('GEOSERVER_URL', 'http://localhost:8080')
@@ -55,6 +55,23 @@ def search(
 @app.get('/sample-points')
 def get_sample_points(n: int = Query(100, ge=1, le=500)):
     return sample_points(n)
+
+
+@app.api_route('/photon/{path:path}', methods=['GET', 'HEAD'])
+def proxy_photon(path: str, request: Request):
+    url = f'{PHOTON_URL}/{path}'
+    qs = str(request.url.query)
+    if qs:
+        url += '?' + qs
+    with httpx.Client(timeout=10, follow_redirects=True,
+                      headers={'User-Agent': 'Search58/1.0'}) as client:
+        resp = client.request(request.method, url)
+    return Response(
+        content=resp.content,
+        status_code=resp.status_code,
+        media_type=resp.headers.get('content-type'),
+        headers={'Access-Control-Allow-Origin': '*'},
+    )
 
 
 @app.api_route('/geoserver/{path:path}', methods=['GET', 'HEAD'])
