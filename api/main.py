@@ -5,7 +5,7 @@ from fastapi import FastAPI, Query, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import Response
 from fastapi.staticfiles import StaticFiles
-from geocoder import geocode_hybrid, search_places, sample_points, PHOTON_URL
+from geocoder import geocode_hybrid, search_places, search_places_all, sample_points, PHOTON_URL
 from db import run_sql
 
 GEOSERVER_URL = os.environ.get('GEOSERVER_URL', 'http://localhost:8080')
@@ -46,9 +46,12 @@ def reverse(
 
 @app.get('/search')
 def search(
-    q:     str = Query(..., min_length=3),
-    limit: int = Query(10, ge=1, le=50),
+    q:       str = Query(..., min_length=3),
+    limit:   int = Query(10, ge=1, le=50),
+    sources: str = Query('f58', description='f58 (default) o all (F58+Photon+Nominatim mezclados)'),
 ):
+    if sources == 'all':
+        return search_places_all(q, limit)
     return search_places(q, limit)
 
 

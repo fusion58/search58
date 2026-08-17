@@ -364,6 +364,95 @@ def search_places(q: str, limit: int = 10) -> list:
     return _search_nominatim(q_norm, limit)
 
 
+def _deduplicate(items: list, radius_deg: float = 0.0005) -> list:
+    """Elimina duplicados por proximidad geográfica (~55m) y nombre similar.
+    Cuando dos resultados apuntan al mismo lugar físico, conserva el de F58
+    (dirección más completa) o el primero de la lista si no hay F58.
+    """
+    kept = []
+    for item in items:
+        try:
+            lat = float(item['lat'])
+            lon = float(item['lon'])
+        except (KeyError, ValueError, TypeError):
+            kept.append(item)
+            continue
+        name_a = (item.get('name') or item.get('display_name', '')).lower()[:20]
+        is_dup = False
+        for k in kept:
+            try:
+                klat = float(k['lat'])
+                klon = float(k['lon'])
+            except (KeyError, ValueError, TypeError):
+                continue
+            # Mismo lugar: coordenadas muy cercanas O mismo nombre en el mismo municipio
+            geo_close = abs(lat - klat) < radius_deg and abs(lon - klon) < radius_deg
+            name_b = (k.get('name') or k.get('display_name', '')).lower()[:20]
+            same_name = name_a and name_b and name_a == name_b
+            if geo_close or same_name:
+                is_dup = True
+                # Si el nuevo es de F58 y el existente no, reemplazar
+                if item.get('source') == 'f58' and k.get('source') != 'f58':
+                    kept[kept.index(k)] = item
+                break
+        if not is_dup:
+            kept.append(item)
+    return kept
+
+
+def _relevance_score(item: dict, sig_words: set) -> float:
+    """Score de relevancia para ordenar resultados mezclados.
+    Combina coincidencia de palabras del query + riqueza de la dirección.
+    F58 tiene un pequeño bonus adicional por mayor detalle en Venezuela.
+    """
+    dn = (item.get('display_name') or '').lower()
+    if not sig_words:
+        return 0.0
+    word_match = sum(1 for w in sig_words if w[:max(4, len(w)-1)] in dn) / len(sig_words)
+    # Riqueza: partes de la dirección (más partes = más completa)
+    parts = len([p for p in dn.split('.') if p.strip()])
+    richness = min(parts / 8, 1.0) * 0.1
+    # Bonus F58: datos propios de Venezuela más detallados
+    src_bonus = 0.05 if item.get('source') == 'f58' else 0.0
+    return word_match + richness + src_bonus
+
+
+def search_places_all(q: str, limit: int = 10) -> list:
+    """sources=all: consulta F58 + Photon en paralelo, mezcla y deduplica."""
+    import concurrent.futures
+    q_norm = _normalizar_query(q)
+    sig_words = _significant_words(q_norm)
+    fetch = max(limit * 3, 30)
+
+    def get_f58():
+        return search_places(q, limit=fetch)
+
+    def get_photon():
+        return _search_photon(q_norm, fetch)
+
+    def get_nominatim():
+        return _search_nominatim(q_norm, min(limit, 5))
+
+    with concurrent.futures.ThreadPoolExecutor(max_workers=3) as ex:
+        f_f58  = ex.submit(get_f58)
+        f_pho  = ex.submit(get_photon)
+        f_nom  = ex.submit(get_nominatim)
+        f58_r  = f_f58.result()  or []
+        pho_r  = f_pho.result()  or []
+        nom_r  = f_nom.result()  or []
+
+    # Combinar: F58 primero (mejor calidad para VE), luego Photon, luego Nominatim
+    combined = f58_r + pho_r + nom_r
+
+    # Ordenar por relevancia antes de deduplicar
+    combined.sort(key=lambda item: _relevance_score(item, sig_words), reverse=True)
+
+    # Deduplicar — si el mismo lugar aparece en varias fuentes, queda el más relevante
+    deduped = _deduplicate(combined, radius_deg=0.001)  # ~110m
+
+    return deduped[:limit]
+
+
 def _search_geonames(q: str, limit: int) -> list:
     """Busca en buscador.geonames usando similitud trigram sobre name y asciiname."""
     sql = (
