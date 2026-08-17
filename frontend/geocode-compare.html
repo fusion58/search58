@@ -626,11 +626,16 @@
 
   function searchScore(items, sigWords) {
     if (!items || !items.length || !sigWords.length) return 0;
-    // Score del mejor resultado: fracción de palabras del query que aparecen en display_name
     var top = items[0];
     var dn = (top.display_name || '').toLowerCase();
+    // Primario: fracción de palabras del query en el display_name
     var matches = sigWords.filter(function(w){ return dn.indexOf(w) !== -1; }).length;
-    return matches / sigWords.length;
+    var primary = matches / sigWords.length;
+    // Secundario: riqueza de la dirección (partes separadas por punto o coma)
+    // Normalizado sobre 10 partes esperadas como máximo
+    var parts = (top.display_name || '').split(/[,\.]/).filter(function(p){ return p.trim().length > 0; }).length;
+    var richness = Math.min(parts / 10, 0.99); // [0..0.99] nunca supera al primario
+    return primary + richness * 0.01; // pequeño bonus que rompe empates sin alterar el orden real
   }
 
   function evaluateSearchWinner(q) {
@@ -641,9 +646,10 @@
       m: searchScore(searchCollected.m, sigWords),
       r: searchScore(searchCollected.r, sigWords)
     };
+    // Search58 (r) gana por defecto en empates — tiene la dirección más completa (F58)
     var winner = 'r';
-    if (scores.l >= scores.r && scores.l >= scores.m) winner = 'l';
-    else if (scores.m >= scores.r && scores.m >= scores.l) winner = 'm';
+    if (scores.l > scores.r && scores.l >= scores.m) winner = 'l';
+    else if (scores.m > scores.r) winner = 'm';
 
     var labels = {
       l: '✓ Nominatim más relevante',
